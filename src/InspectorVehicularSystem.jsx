@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
-  Upload, LogOut, Filter, Download, Eye, EyeOff, 
-  BarChart3, TrendingUp, Car, AlertTriangle,
-  Clock, FileText, Shield, CheckCircle, AlertCircle, Target, Loader2,
-  User
+  Upload, LogOut, Search, Filter, Download, Eye, EyeOff, 
+  BarChart3, PieChart, TrendingUp, Users, Car, AlertTriangle,
+  Calendar, MapPin, Clock, Building, ChevronDown, X, FileText,
+  Shield, CheckCircle, XCircle, AlertCircle, Target, Loader2,
+  ArrowUpDown, TrendingDown, Award, Zap, Settings, RefreshCw,
+  User, Activity, Flag, Gauge
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart as RechartsPieChart, Pie, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart as RechartsPieChart, Pie, Cell, LineChart, Line, ScatterChart, Scatter,
+  AreaChart, Area, ComposedChart
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -19,6 +22,7 @@ const InspectorVehicularSystem = () => {
   const [sessionTimeout, setSessionTimeout] = useState(null);
   
   // Estados de datos
+  const [rawData, setRawData] = useState(null);
   const [processedData, setProcessedData] = useState(null);
   const [systemStats, setSystemStats] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -575,6 +579,33 @@ const InspectorVehicularSystem = () => {
         }
       };
 
+      console.log('Procesamiento completado:', {
+        inspecciones: finalData.inspections.length,
+        inspectores: stats.uniqueCounts.inspectors,
+        vehículos: stats.uniqueCounts.vehicles,
+        cumplimiento: averageCompliance.toFixed(2) + '%',
+        muestraInspecciones: finalData.inspections.slice(0, 3).map(insp => ({
+          id: insp.id,
+          inspector: insp.inspector,
+          vehicle: insp.vehicle,
+          compliance: insp.compliance,
+          totalItems: insp.totalItems,
+          compliantItems: insp.compliantItems,
+          criticalFailures: insp.criticalFailures,
+          items: Object.keys(insp.items).slice(0, 3).map(key => ({
+            name: key,
+            value: insp.items[key].value,
+            compliant: insp.items[key].compliant,
+            original: insp.items[key].originalValue
+          }))
+        })),
+        itemsDetectados: detectedColumns.inspectionItems.slice(0, 5).map(item => ({
+          name: item.cleanName,
+          isCritical: item.isCritical
+        }))
+      });
+
+      setRawData(rawSheetData);
       setProcessedData(finalData);
       setSystemStats(stats);
       setProcessingProgress(100);
@@ -1140,6 +1171,22 @@ const InspectorVehicularSystem = () => {
     const amarillos = conductores.filter(c => c.status === 'amarillo');
     const rojos = conductores.filter(c => c.status === 'rojo');
 
+    console.log('ANÁLISIS CONDUCTORES NUEVO:', {
+      total: conductores.length,
+      verdes: verdes.length,
+      amarillos: amarillos.length,
+      rojos: rojos.length,
+      promedioCompliance: conductores.length > 0 ? 
+        (conductores.reduce((sum, c) => sum + c.compliance, 0) / conductores.length).toFixed(2) : 0,
+      muestra: conductores.slice(0, 3).map(c => ({
+        nombre: c.name,
+        compliance: c.compliance,
+        items: `${c.compliantItems}/${c.totalItems}`,
+        diasSinInspeccion: c.daysSince,
+        ultimaFecha: c.lastDate ? c.lastDate.toLocaleDateString() : 'Sin fecha'
+      }))
+    });
+
     if (conductores.length === 0) {
       return (
         <div className="bg-white rounded-xl p-8 shadow-sm border text-center">
@@ -1192,6 +1239,36 @@ const InspectorVehicularSystem = () => {
                 <p className="text-xl font-bold text-red-800">{rojos.length}</p>
               </div>
               <AlertTriangle className="w-8 h-8 text-red-600" />
+            </div>
+          </div>
+        </div>
+
+        {/* Panel de validación */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <AlertCircle className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-blue-800">Validación de Datos Completada</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Cumplimiento Real Promedio:</span><br />
+                {conductores.length > 0 ? 
+                  (conductores.reduce((sum, c) => sum + c.compliance, 0) / conductores.length).toFixed(2) : 0
+                }%
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Items Evaluados:</span><br />
+                {conductores.reduce((sum, c) => sum + c.totalItems, 0).toLocaleString()} totales
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Items Cumplidos:</span><br />
+                {conductores.reduce((sum, c) => sum + c.compliantItems, 0).toLocaleString()} cumplidos
+              </p>
             </div>
           </div>
         </div>
@@ -1277,6 +1354,184 @@ const InspectorVehicularSystem = () => {
                     </span>
                     <span className="text-sm text-green-700 font-bold bg-green-100 px-3 py-1 rounded border border-green-300">
                       Al día
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* CONDUCTORES PRÓXIMOS A VENCER - AMARILLO */}
+        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-6 h-6 rounded-full bg-yellow-600 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-white" />
+            </div>
+            <h3 className="text-xl font-bold text-yellow-800">
+              Conductores Próximos a Vencer (6-10 días)
+            </h3>
+            <div className="px-3 py-1 rounded-full text-sm font-bold bg-yellow-600 text-white">
+              {amarillos.length}
+            </div>
+          </div>
+          
+          {amarillos.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-lg text-yellow-800 opacity-75">
+                No hay conductores en esta categoría
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {amarillos.map(conductor => (
+                <div key={conductor.name} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h4 className="font-bold text-lg text-gray-800 mb-1">{conductor.name}</h4>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-lg font-bold text-yellow-600">
+                          {conductor.compliance.toFixed(1)}% cumplimiento
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          ({conductor.compliantItems}/{conductor.totalItems} items)
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className="text-sm text-gray-500 mb-1">Última inspección:</div>
+                      <div className="font-bold text-gray-800">
+                        {conductor.lastDate ? 
+                          conductor.lastDate.toLocaleDateString('es-CO', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          }) : 
+                          'Sin registro'
+                        }
+                      </div>
+                      <div className="text-xl font-bold mt-1 text-yellow-600">
+                        {conductor.daysSince === 999 ? 
+                          'Sin fecha' : 
+                          `${conductor.daysSince} días atrás`
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                    <div><span className="font-semibold">Inspecciones:</span> {conductor.totalInspections}</div>
+                    <div><span className="font-semibold">Vehículos:</span> {conductor.vehicleCount}</div>
+                    <div>
+                      <span className="font-semibold">Fallas críticas:</span> 
+                      <span className={conductor.criticalFailures > 0 ? 'text-red-600 font-bold ml-1' : 'ml-1'}>
+                        {conductor.criticalFailures}
+                      </span>
+                    </div>
+                    <div><span className="font-semibold">Ubicaciones:</span> {conductor.locationCount}</div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      conductor.risk === 'Bajo' ? 'bg-green-100 text-green-800 border border-green-300' :
+                      conductor.risk === 'Medio' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
+                      conductor.risk === 'Alto' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                      'bg-red-100 text-red-800 border border-red-300'
+                    }`}>
+                      Riesgo: {conductor.risk}
+                    </span>
+                    <span className="text-sm text-yellow-700 font-bold bg-yellow-100 px-3 py-1 rounded border border-yellow-300">
+                      Próximo a vencer
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* CONDUCTORES VENCIDOS - ROJO */}
+        <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-white" />
+            </div>
+            <h3 className="text-xl font-bold text-red-800">
+              Conductores con Inspecciones Vencidas (&gt;10 días)
+            </h3>
+            <div className="px-3 py-1 rounded-full text-sm font-bold bg-red-600 text-white">
+              {rojos.length}
+            </div>
+          </div>
+          
+          {rojos.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-lg text-red-800 opacity-75">
+                No hay conductores en esta categoría
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {rojos.map(conductor => (
+                <div key={conductor.name} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h4 className="font-bold text-lg text-gray-800 mb-1">{conductor.name}</h4>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-lg font-bold text-red-600">
+                          {conductor.compliance.toFixed(1)}% cumplimiento
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          ({conductor.compliantItems}/{conductor.totalItems} items)
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className="text-sm text-gray-500 mb-1">Última inspección:</div>
+                      <div className="font-bold text-gray-800">
+                        {conductor.lastDate ? 
+                          conductor.lastDate.toLocaleDateString('es-CO', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          }) : 
+                          'Sin registro'
+                        }
+                      </div>
+                      <div className="text-xl font-bold mt-1 text-red-600">
+                        {conductor.daysSince === 999 ? 
+                          'Sin fecha' : 
+                          `${conductor.daysSince} días atrás`
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                    <div><span className="font-semibold">Inspecciones:</span> {conductor.totalInspections}</div>
+                    <div><span className="font-semibold">Vehículos:</span> {conductor.vehicleCount}</div>
+                    <div>
+                      <span className="font-semibold">Fallas críticas:</span> 
+                      <span className={conductor.criticalFailures > 0 ? 'text-red-600 font-bold ml-1' : 'ml-1'}>
+                        {conductor.criticalFailures}
+                      </span>
+                    </div>
+                    <div><span className="font-semibold">Ubicaciones:</span> {conductor.locationCount}</div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      conductor.risk === 'Bajo' ? 'bg-green-100 text-green-800 border border-green-300' :
+                      conductor.risk === 'Medio' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
+                      conductor.risk === 'Alto' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                      'bg-red-100 text-red-800 border border-red-300'
+                    }`}>
+                      Riesgo: {conductor.risk}
+                    </span>
+                    <span className="text-sm text-red-700 font-bold bg-red-100 px-3 py-1 rounded border border-red-300">
+                      INSPECCIÓN URGENTE
                     </span>
                   </div>
                 </div>
