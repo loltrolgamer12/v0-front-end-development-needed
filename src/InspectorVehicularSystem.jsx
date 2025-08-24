@@ -39,6 +39,7 @@ const InspectorVehicularSystem = () => {
     shift: '',
     year: '',
     month: '',
+    dayOfWeek: '',
     complianceMin: 0,
     complianceMax: 100,
     dateStart: '',
@@ -118,6 +119,20 @@ const InspectorVehicularSystem = () => {
           const date = new Date(insp.timestamp);
           if (isNaN(date.getTime())) return false;
           return (date.getMonth() + 1).toString() === filters.month;
+        } catch {
+          return false;
+        }
+      });
+    }
+
+    // Filtro por día de la semana
+    if (filters.dayOfWeek && filters.dayOfWeek !== '') {
+      filtered = filtered.filter(insp => {
+        if (!insp.timestamp) return false;
+        try {
+          const date = new Date(insp.timestamp);
+          if (isNaN(date.getTime())) return false;
+          return date.getDay().toString() === filters.dayOfWeek;
         } catch {
           return false;
         }
@@ -838,6 +853,24 @@ const InspectorVehicularSystem = () => {
               <option value="12">Diciembre</option>
             </select>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Día de la Semana</label>
+            <select
+              value={filters.dayOfWeek}
+              onChange={(e) => setFilters(prev => ({ ...prev, dayOfWeek: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Todos los días</option>
+              <option value="0">Domingo</option>
+              <option value="1">Lunes</option>
+              <option value="2">Martes</option>
+              <option value="3">Miércoles</option>
+              <option value="4">Jueves</option>
+              <option value="5">Viernes</option>
+              <option value="6">Sábado</option>
+            </select>
+          </div>
         </div>
         
         <div className="flex items-center justify-between mt-4 pt-4 border-t">
@@ -863,6 +896,7 @@ const InspectorVehicularSystem = () => {
               shift: '',
               year: '',
               month: '',
+              dayOfWeek: '',
               complianceMin: 0,
               complianceMax: 100,
               dateStart: '',
@@ -1078,6 +1112,533 @@ const InspectorVehicularSystem = () => {
                 </div>
               ))}
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  // NUEVO: Análisis de vehículos COMPLETAMENTE DESDE CERO
+  const VehicleAnalysisNuevo = () => {
+    if (!processedData || !filteredData) return null;
+
+    const today = new Date();
+    
+    // Procesar datos de vehículos desde cero
+    const vehicleData = {};
+    
+    filteredData.forEach(insp => {
+      if (insp.vehicle && insp.vehicle !== 'Sin especificar') {
+        if (!vehicleData[insp.vehicle]) {
+          vehicleData[insp.vehicle] = {
+            plate: insp.vehicle,
+            inspections: [],
+            inspectors: new Set(),
+            locations: new Set(),
+            failures: {},
+            criticalFailures: {},
+            mileages: []
+          };
+        }
+        
+        vehicleData[insp.vehicle].inspections.push(insp);
+        vehicleData[insp.vehicle].inspectors.add(insp.inspector);
+        vehicleData[insp.vehicle].locations.add(insp.location);
+        vehicleData[insp.vehicle].mileages.push(insp.mileage || 0);
+        
+        // Analizar fallas específicas por item
+        Object.entries(insp.items || {}).forEach(([itemName, itemData]) => {
+          if (!itemData.compliant) {
+            // Contar fallas por item
+            if (!vehicleData[insp.vehicle].failures[itemName]) {
+              vehicleData[insp.vehicle].failures[itemName] = 0;
+            }
+            vehicleData[insp.vehicle].failures[itemName]++;
+            
+            // Contar fallas críticas
+            if (itemData.isCritical) {
+              if (!vehicleData[insp.vehicle].criticalFailures[itemName]) {
+                vehicleData[insp.vehicle].criticalFailures[itemName] = 0;
+              }
+              vehicleData[insp.vehicle].criticalFailures[itemName]++;
+            }
+          }
+        });
+      }
+    });
+
+    // Calcular estadísticas para cada vehículo
+    const vehiculos = Object.values(vehicleData).map(vehicle => {
+      // Calcular cumplimiento real
+      let totalItems = 0;
+      let compliantItems = 0;
+      let criticalFailures = 0;
+      let lastDate = null;
+      let totalFailures = 0;
+
+      vehicle.inspections.forEach(insp => {
+        totalItems += insp.totalItems || 0;
+        compliantItems += insp.compliantItems || 0;
+        criticalFailures += insp.criticalFailures || 0;
+        
+        if (insp.timestamp) {
+          const date = new Date(insp.timestamp);
+          if (!lastDate || date > lastDate) {
+            lastDate = date;
+          }
+        }
+      });
+
+      // Calcular total de fallas por item
+      totalFailures = Object.values(vehicle.failures).reduce((sum, count) => sum + count, 0);
+      
+      const compliance = totalItems > 0 ? (compliantItems / totalItems) * 100 : 0;
+      
+      // Calcular días desde última inspección
+      let daysSince = 999;
+      if (lastDate) {
+        const timeDiff = today.getTime() - lastDate.getTime();
+        daysSince = Math.floor(timeDiff / (1000 * 3600 * 24));
+      }
+
+      // Determinar estado basado en fallas críticas y cumplimiento
+      let status = 'verde';
+      if (criticalFailures > 5 || compliance < 70) status = 'rojo';
+      else if (criticalFailures > 2 || compliance < 85) status = 'amarillo';
+
+      // Determinar riesgo operacional
+      let risk = 'Bajo';
+      if (criticalFailures > 10 || compliance < 60) risk = 'Crítico';
+      else if (criticalFailures > 5 || compliance < 75) risk = 'Alto';
+      else if (criticalFailures > 2 || compliance < 90) risk = 'Medio';
+
+      // Calcular kilometraje promedio y rango
+      const validMileages = vehicle.mileages.filter(m => m > 0);
+      const avgMileage = validMileages.length > 0 ? 
+        validMileages.reduce((sum, m) => sum + m, 0) / validMileages.length : 0;
+      const maxMileage = validMileages.length > 0 ? Math.max(...validMileages) : 0;
+      const minMileage = validMileages.length > 0 ? Math.min(...validMileages) : 0;
+
+      // Items más problemáticos
+      const topFailures = Object.entries(vehicle.failures)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5);
+
+      const topCriticalFailures = Object.entries(vehicle.criticalFailures)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 3);
+
+      return {
+        plate: vehicle.plate,
+        totalInspections: vehicle.inspections.length,
+        compliance: Math.round(compliance * 100) / 100,
+        totalItems,
+        compliantItems,
+        criticalFailures,
+        totalFailures,
+        inspectorCount: vehicle.inspectors.size,
+        locationCount: vehicle.locations.size,
+        lastDate,
+        daysSince,
+        status,
+        risk,
+        avgMileage: Math.round(avgMileage),
+        maxMileage,
+        minMileage,
+        mileageRange: maxMileage - minMileage,
+        topFailures,
+        topCriticalFailures,
+        inspectors: Array.from(vehicle.inspectors),
+        locations: Array.from(vehicle.locations)
+      };
+    }).sort((a, b) => b.criticalFailures - a.criticalFailures);
+
+    // Separar por estado
+    const verdes = vehiculos.filter(v => v.status === 'verde');
+    const amarillos = vehiculos.filter(v => v.status === 'amarillo');
+    const rojos = vehiculos.filter(v => v.status === 'rojo');
+
+    // Análisis de items más problemáticos a nivel global
+    const globalFailures = {};
+    const globalCriticalFailures = {};
+    
+    Object.values(vehicleData).forEach(vehicle => {
+      Object.entries(vehicle.failures).forEach(([item, count]) => {
+        globalFailures[item] = (globalFailures[item] || 0) + count;
+      });
+      Object.entries(vehicle.criticalFailures).forEach(([item, count]) => {
+        globalCriticalFailures[item] = (globalCriticalFailures[item] || 0) + count;
+      });
+    });
+
+    const topGlobalFailures = Object.entries(globalFailures)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10);
+
+    const topGlobalCriticalFailures = Object.entries(globalCriticalFailures)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10);
+
+    console.log('ANÁLISIS VEHÍCULOS NUEVO:', {
+      total: vehiculos.length,
+      verdes: verdes.length,
+      amarillos: amarillos.length,
+      rojos: rojos.length,
+      promedioCompliance: vehiculos.length > 0 ? 
+        (vehiculos.reduce((sum, v) => sum + v.compliance, 0) / vehiculos.length).toFixed(2) : 0,
+      totalFallasCriticas: vehiculos.reduce((sum, v) => sum + v.criticalFailures, 0),
+      itemsMasProblematicos: topGlobalFailures.slice(0, 5),
+      vehiculosMasProblematicos: vehiculos.slice(0, 3).map(v => ({
+        placa: v.plate,
+        compliance: v.compliance,
+        fallasCriticas: v.criticalFailures,
+        topFallas: v.topFailures.slice(0, 3)
+      }))
+    });
+
+    if (vehiculos.length === 0) {
+      return (
+        <div className="bg-white rounded-xl p-8 shadow-sm border text-center">
+          <Car className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">
+            No hay datos de vehículos disponibles
+          </h3>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Resumen ejecutivo */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Vehículos</p>
+                <p className="text-xl font-bold text-gray-800">{vehiculos.length}</p>
+              </div>
+              <Car className="w-8 h-8 text-blue-600" />
+            </div>
+          </div>
+          
+          <div className="bg-green-50 rounded-lg p-4 shadow-sm border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-green-700">Estado Óptimo</p>
+                <p className="text-xl font-bold text-green-800">{verdes.length}</p>
+              </div>
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+          </div>
+          
+          <div className="bg-yellow-50 rounded-lg p-4 shadow-sm border border-yellow-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-yellow-700">Requiere Atención</p>
+                <p className="text-xl font-bold text-yellow-800">{amarillos.length}</p>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-yellow-600" />
+            </div>
+          </div>
+          
+          <div className="bg-red-50 rounded-lg p-4 shadow-sm border border-red-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-red-700">Estado Crítico</p>
+                <p className="text-xl font-bold text-red-800">{rojos.length}</p>
+              </div>
+              <XCircle className="w-8 h-8 text-red-600" />
+            </div>
+          </div>
+        </div>
+
+        {/* Panel de items más problemáticos */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+            <h3 className="text-lg font-bold text-red-800 mb-4">
+              Items Críticos Más Problemáticos
+            </h3>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {topGlobalCriticalFailures.map(([item, count], index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                  <div className="flex items-center space-x-2 flex-1">
+                    <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                    <span className="text-sm text-gray-700 truncate">
+                      {item.replace(/^\*\*/, '')}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-red-600">{count}</div>
+                    <div className="text-xs text-gray-500">fallas</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
+            <h3 className="text-lg font-bold text-orange-800 mb-4">
+              Todos los Items Problemáticos
+            </h3>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {topGlobalFailures.map(([item, count], index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                  <div className="flex items-center space-x-2 flex-1">
+                    <div className={`w-4 h-4 rounded-full flex-shrink-0 ${
+                      item.startsWith('**') ? 'bg-red-500' : 'bg-orange-400'
+                    }`}></div>
+                    <span className="text-sm text-gray-700 truncate">
+                      {item.replace(/^\*\*/, '')}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-orange-600">{count}</div>
+                    <div className="text-xs text-gray-500">fallas</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* VEHÍCULOS EN ESTADO CRÍTICO - ROJO */}
+        <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center">
+              <XCircle className="w-4 h-4 text-white" />
+            </div>
+            <h3 className="text-xl font-bold text-red-800">
+              Vehículos en Estado Crítico
+            </h3>
+            <div className="px-3 py-1 rounded-full text-sm font-bold bg-red-600 text-white">
+              {rojos.length}
+            </div>
+          </div>
+          
+          {rojos.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-lg text-red-800 opacity-75">
+                No hay vehículos en estado crítico
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {rojos.slice(0, 10).map(vehicle => (
+                <div key={vehicle.plate} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h4 className="font-bold text-lg text-gray-800 mb-1">
+                        Placa: {vehicle.plate}
+                      </h4>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-lg font-bold text-red-600">
+                          {vehicle.compliance.toFixed(1)}% cumplimiento
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          ({vehicle.compliantItems}/{vehicle.totalItems} items)
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className="text-sm text-gray-500 mb-1">Fallas críticas:</div>
+                      <div className="text-2xl font-bold text-red-600">
+                        {vehicle.criticalFailures}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {vehicle.totalFailures} fallas totales
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                    <div><span className="font-semibold">Inspecciones:</span> {vehicle.totalInspections}</div>
+                    <div><span className="font-semibold">Kilometraje prom:</span> {vehicle.avgMileage.toLocaleString()}</div>
+                    <div><span className="font-semibold">Conductores:</span> {vehicle.inspectorCount}</div>
+                    <div><span className="font-semibold">Ubicaciones:</span> {vehicle.locationCount}</div>
+                  </div>
+                  
+                  {vehicle.topCriticalFailures.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-sm font-semibold text-red-700 mb-2">
+                        Fallas críticas más frecuentes:
+                      </p>
+                      <div className="space-y-1">
+                        {vehicle.topCriticalFailures.map(([item, count], index) => (
+                          <div key={index} className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                            {item.replace(/^\*\*/, '')}: {count} veces
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      vehicle.risk === 'Bajo' ? 'bg-green-100 text-green-800 border border-green-300' :
+                      vehicle.risk === 'Medio' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
+                      vehicle.risk === 'Alto' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                      'bg-red-100 text-red-800 border border-red-300'
+                    }`}>
+                      Riesgo: {vehicle.risk}
+                    </span>
+                    <span className="text-sm text-red-700 font-bold bg-red-100 px-3 py-1 rounded border border-red-300">
+                      MANTENIMIENTO URGENTE
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* VEHÍCULOS QUE REQUIEREN ATENCIÓN - AMARILLO */}
+        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-6 h-6 rounded-full bg-yellow-600 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-white" />
+            </div>
+            <h3 className="text-xl font-bold text-yellow-800">
+              Vehículos que Requieren Atención
+            </h3>
+            <div className="px-3 py-1 rounded-full text-sm font-bold bg-yellow-600 text-white">
+              {amarillos.length}
+            </div>
+          </div>
+          
+          {amarillos.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-lg text-yellow-800 opacity-75">
+                No hay vehículos que requieran atención especial
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {amarillos.slice(0, 10).map(vehicle => (
+                <div key={vehicle.plate} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h4 className="font-bold text-lg text-gray-800 mb-1">
+                        Placa: {vehicle.plate}
+                      </h4>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-lg font-bold text-yellow-600">
+                          {vehicle.compliance.toFixed(1)}% cumplimiento
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          ({vehicle.compliantItems}/{vehicle.totalItems} items)
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className="text-sm text-gray-500 mb-1">Fallas críticas:</div>
+                      <div className="text-2xl font-bold text-yellow-600">
+                        {vehicle.criticalFailures}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {vehicle.totalFailures} fallas totales
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                    <div><span className="font-semibold">Inspecciones:</span> {vehicle.totalInspections}</div>
+                    <div><span className="font-semibold">Kilometraje prom:</span> {vehicle.avgMileage.toLocaleString()}</div>
+                    <div><span className="font-semibold">Conductores:</span> {vehicle.inspectorCount}</div>
+                    <div><span className="font-semibold">Ubicaciones:</span> {vehicle.locationCount}</div>
+                  </div>
+                  
+                  {vehicle.topFailures.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-sm font-semibold text-yellow-700 mb-2">
+                        Fallas más frecuentes:
+                      </p>
+                      <div className="space-y-1">
+                        {vehicle.topFailures.slice(0, 3).map(([item, count], index) => (
+                          <div key={index} className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                            {item.replace(/^\*\*/, '')}: {count} veces
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      vehicle.risk === 'Bajo' ? 'bg-green-100 text-green-800 border border-green-300' :
+                      vehicle.risk === 'Medio' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
+                      vehicle.risk === 'Alto' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                      'bg-red-100 text-red-800 border border-red-300'
+                    }`}>
+                      Riesgo: {vehicle.risk}
+                    </span>
+                    <span className="text-sm text-yellow-700 font-bold bg-yellow-100 px-3 py-1 rounded border border-yellow-300">
+                      Programar Mantenimiento
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* VEHÍCULOS EN ESTADO ÓPTIMO - VERDE */}
+        <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 text-white" />
+            </div>
+            <h3 className="text-xl font-bold text-green-800">
+              Vehículos en Estado Óptimo
+            </h3>
+            <div className="px-3 py-1 rounded-full text-sm font-bold bg-green-600 text-white">
+              {verdes.length}
+            </div>
+          </div>
+          
+          {verdes.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-lg text-green-800 opacity-75">
+                No hay vehículos en estado óptimo actualmente
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {verdes.slice(0, 15).map(vehicle => (
+                <div key={vehicle.plate} className="bg-white rounded-lg p-4 border-2 border-gray-200 shadow-md">
+                  <div className="flex justify-between items-center">
+                    <div className="flex-1">
+                      <h4 className="font-bold text-lg text-gray-800 mb-1">
+                        Placa: {vehicle.plate}
+                      </h4>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-lg font-bold text-green-600">
+                          {vehicle.compliance.toFixed(1)}% cumplimiento
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          ({vehicle.compliantItems}/{vehicle.totalItems} items)
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className="text-sm text-gray-500 mb-1">Fallas críticas:</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {vehicle.criticalFailures}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {vehicle.totalFailures} fallas totales
+                      </div>
+                    </div>
+                    
+                    <span className="text-sm text-green-700 font-bold bg-green-100 px-3 py-1 rounded border border-green-300 ml-4">
+                      Estado Óptimo
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1446,304 +2007,3 @@ const InspectorVehicularSystem = () => {
                     </span>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* CONDUCTORES VENCIDOS - ROJO */}
-        <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4 text-white" />
-            </div>
-            <h3 className="text-xl font-bold text-red-800">
-              Conductores con Inspecciones Vencidas (&gt;10 días)
-            </h3>
-            <div className="px-3 py-1 rounded-full text-sm font-bold bg-red-600 text-white">
-              {rojos.length}
-            </div>
-          </div>
-          
-          {rojos.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-lg text-red-800 opacity-75">
-                No hay conductores en esta categoría
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {rojos.map(conductor => (
-                <div key={conductor.name} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1">
-                      <h4 className="font-bold text-lg text-gray-800 mb-1">{conductor.name}</h4>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-lg font-bold text-red-600">
-                          {conductor.compliance.toFixed(1)}% cumplimiento
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          ({conductor.compliantItems}/{conductor.totalItems} items)
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500 mb-1">Última inspección:</div>
-                      <div className="font-bold text-gray-800">
-                        {conductor.lastDate ? 
-                          conductor.lastDate.toLocaleDateString('es-CO', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          }) : 
-                          'Sin registro'
-                        }
-                      </div>
-                      <div className="text-xl font-bold mt-1 text-red-600">
-                        {conductor.daysSince === 999 ? 
-                          'Sin fecha' : 
-                          `${conductor.daysSince} días atrás`
-                        }
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
-                    <div><span className="font-semibold">Inspecciones:</span> {conductor.totalInspections}</div>
-                    <div><span className="font-semibold">Vehículos:</span> {conductor.vehicleCount}</div>
-                    <div>
-                      <span className="font-semibold">Fallas críticas:</span> 
-                      <span className={conductor.criticalFailures > 0 ? 'text-red-600 font-bold ml-1' : 'ml-1'}>
-                        {conductor.criticalFailures}
-                      </span>
-                    </div>
-                    <div><span className="font-semibold">Ubicaciones:</span> {conductor.locationCount}</div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      conductor.risk === 'Bajo' ? 'bg-green-100 text-green-800 border border-green-300' :
-                      conductor.risk === 'Medio' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
-                      conductor.risk === 'Alto' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
-                      'bg-red-100 text-red-800 border border-red-300'
-                    }`}>
-                      Riesgo: {conductor.risk}
-                    </span>
-                    <span className="text-sm text-red-700 font-bold bg-red-100 px-3 py-1 rounded border border-red-300">
-                      INSPECCIÓN URGENTE
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // Header del sistema
-  const SystemHeader = () => (
-    <div className="bg-white shadow-sm border-b px-6 py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="bg-blue-100 rounded-lg p-2">
-            <Shield className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-800">Inspector Vehicular v2.0</h1>
-            {systemStats && (
-              <p className="text-sm text-gray-500">
-                {systemStats.totalInspections.toLocaleString()} inspecciones | 
-                {systemStats.uniqueCounts.inspectors} conductores |
-                {systemStats.uniqueCounts.vehicles} vehículos |
-                Promedio: {systemStats.averageCompliance.toFixed(1)}%
-              </p>
-            )}
-          </div>
-        </div>
-        
-        <div className="flex items-center space-x-4">
-          {processedData && (
-            <>
-              <button 
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
-                  showFilters ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                Filtros
-              </button>
-              <button className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                <Download className="w-4 h-4 mr-2" />
-                Exportar
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => {
-              setIsAuthenticated(false);
-              setProcessedData(null);
-              setSystemStats(null);
-              localStorage.removeItem('inspector_session');
-            }}
-            className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Salir
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Verificación de sesión
-  useEffect(() => {
-    const sessionData = localStorage.getItem('inspector_session');
-    if (sessionData) {
-      try {
-        const session = JSON.parse(atob(sessionData));
-        if (session.authenticated && Date.now() < session.expires) {
-          setIsAuthenticated(true);
-          setSessionTimeout(session.expires);
-        } else {
-          localStorage.removeItem('inspector_session');
-        }
-      } catch (error) {
-        localStorage.removeItem('inspector_session');
-      }
-    }
-  }, []);
-
-  // Timeout de sesión
-  useEffect(() => {
-    if (sessionTimeout) {
-      const timeLeft = sessionTimeout - Date.now();
-      if (timeLeft > 0) {
-        const timer = setTimeout(() => {
-          setIsAuthenticated(false);
-          setProcessedData(null);
-          setSystemStats(null);
-          localStorage.removeItem('inspector_session');
-          alert('Su sesión ha expirado. Por favor, inicie sesión nuevamente.');
-        }, timeLeft);
-        
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [sessionTimeout]);
-
-  // Render principal
-  if (!isAuthenticated) {
-    return <LoginForm />;
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <SystemHeader />
-      
-      <div className="flex">
-        {/* Panel de navegación lateral */}
-        <div className="w-64 bg-white shadow-sm h-screen sticky top-0">
-          <div className="p-4 space-y-2">
-            {[
-              { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-              { id: 'conductores', label: 'Conductores', icon: User },
-              { id: 'vehicles', label: 'Vehículos', icon: Car },
-              { id: 'trends', label: 'Tendencias', icon: TrendingUp },
-              { id: 'critical', label: 'Items Críticos', icon: AlertTriangle }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <tab.icon className="w-5 h-5 mr-3" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Contenido principal */}
-        <div className="flex-1 p-6">
-          {!processedData ? (
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                  Sistema de Análisis Vehicular v2.0
-                </h2>
-                <p className="text-gray-600">
-                  Cargue su archivo Excel/CSV para análisis automático completo
-                </p>
-              </div>
-              
-              <FileUpload />
-              
-              {isProcessing && (
-                <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-                  <div className="flex items-center justify-center space-x-3 mb-4">
-                    <Loader2 className="animate-spin h-8 w-8 text-blue-600" />
-                    <div>
-                      <p className="font-semibold text-blue-700">Procesando archivo Excel...</p>
-                      <p className="text-sm text-blue-600">Análisis automático en progreso</p>
-                    </div>
-                  </div>
-                  
-                  <div className="w-full bg-blue-200 rounded-full h-2.5 mb-2">
-                    <div 
-                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                      style={{ width: `${processingProgress}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-center text-sm text-blue-600">
-                    {processingProgress}% completado
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div>
-              <AdvancedFilters />
-              
-              {activeTab === 'dashboard' && <Dashboard />}
-              {activeTab === 'conductores' && <ConductorAnalysisNuevo />}
-              
-              {/* Placeholders para otras tabs */}
-              {!['dashboard', 'conductores'].includes(activeTab) && (
-                <div className="bg-white rounded-xl p-8 shadow-sm border text-center">
-                  <Target className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                    {activeTab === 'vehicles' && 'Análisis Detallado por Vehículos'}
-                    {activeTab === 'trends' && 'Análisis de Tendencias Temporales'}
-                    {activeTab === 'critical' && 'Análisis de Items Críticos'}
-                  </h3>
-                  <p className="text-gray-500 mb-4">
-                    Sección en desarrollo
-                  </p>
-                  <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
-                    <p className="font-semibold mb-2">Datos procesados:</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <p>• {systemStats.uniqueCounts.inspectors} conductores únicos</p>
-                      <p>• {systemStats.uniqueCounts.vehicles} vehículos únicos</p>
-                      <p>• {systemStats.uniqueCounts.locations} ubicaciones</p>
-                      <p>• {systemStats.uniqueCounts.inspectionItems} items de inspección</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default InspectorVehicularSystem;
