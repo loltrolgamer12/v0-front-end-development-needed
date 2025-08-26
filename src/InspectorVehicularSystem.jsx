@@ -700,6 +700,10 @@ const InspectorVehicularSystem = () => {
   const AdvancedFilters = () => {
     const [searchText, setSearchText] = useState(filters.search);
     
+    const handleInputChange = useCallback((field, value) => {
+      setFilters(prev => ({ ...prev, [field]: value }));
+    }, []);
+    
     if (!processedData) return null;
     
     const getAvailableDays = () => {
@@ -724,10 +728,6 @@ const InspectorVehicularSystem = () => {
     };
 
     const availableDays = getAvailableDays();
-
-    const handleInputChange = useCallback((field, value) => {
-      setFilters(prev => ({ ...prev, [field]: value }));
-    }, []);
 
     const handleSearch = () => {
       setFilters(prev => ({ ...prev, search: searchText }));
@@ -1923,6 +1923,7 @@ const InspectorVehicularSystem = () => {
                         <div><span className="font-semibold">Conductores:</span> {vehicle.inspectorCount}</div>
                       </div>
 
+                      {vehicle.topFailedItems.length > 0 && (
                       {vehicle.topFailedItems.length > 0 && (
                         <div className="mb-3">
                           <h5 className={`font-semibold text-${groupConfig.color}-700 text-sm mb-2`}>Items que más fallan (período):</h5>
