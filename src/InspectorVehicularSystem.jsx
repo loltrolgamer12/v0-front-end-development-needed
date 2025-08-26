@@ -1,26 +1,34 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
-  Upload, LogOut, Filter, Download, Eye, EyeOff, 
-  BarChart3, Car, AlertTriangle, Clock, FileText,
+  Upload, LogOut, Search, Filter, Download, Eye, EyeOff, 
+  BarChart3, PieChart, TrendingUp, Users, Car, AlertTriangle,
+  Calendar, MapPin, Clock, Building, ChevronDown, X, FileText,
   Shield, CheckCircle, XCircle, AlertCircle, Target, Loader2,
-  User, TrendingUp
+  ArrowUpDown, TrendingDown, Award, Zap, Settings, RefreshCw,
+  User, Activity, Flag, Gauge
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart as RechartsPieChart, Pie, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart as RechartsPieChart, Pie, Cell, LineChart, Line, ScatterChart, Scatter,
+  AreaChart, Area, ComposedChart
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
 const InspectorVehicularSystem = () => {
+  // Estados principales
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [sessionTimeout, setSessionTimeout] = useState(null);
+  
+  // Estados de datos
   const [rawData, setRawData] = useState(null);
   const [processedData, setProcessedData] = useState(null);
   const [systemStats, setSystemStats] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
+  
+  // Estados de UI y filtros
   const [activeTab, setActiveTab] = useState('dashboard');
   const [filters, setFilters] = useState({
     search: '',
@@ -31,7 +39,7 @@ const InspectorVehicularSystem = () => {
     shift: '',
     year: '',
     month: '',
-    dayOfWeek: '',
+    day: '',
     complianceMin: 0,
     complianceMax: 100,
     dateStart: '',
@@ -41,6 +49,7 @@ const InspectorVehicularSystem = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   
+  // Colores del sistema
   const colors = {
     primary: '#2563eb',
     success: '#10b981',
@@ -51,11 +60,13 @@ const InspectorVehicularSystem = () => {
     gray: '#6b7280'
   };
 
+  // Datos filtrados
   const filteredData = useMemo(() => {
     if (!processedData) return null;
     
     let filtered = [...processedData.inspections];
     
+    // Búsqueda global
     if (filters.search && filters.search.trim()) {
       const searchTerm = filters.search.toLowerCase().trim();
       filtered = filtered.filter(insp => 
@@ -67,6 +78,7 @@ const InspectorVehicularSystem = () => {
       );
     }
     
+    // Filtros específicos
     if (filters.inspector && filters.inspector !== '') {
       filtered = filtered.filter(insp => insp.inspector === filters.inspector);
     }
@@ -86,6 +98,7 @@ const InspectorVehicularSystem = () => {
       filtered = filtered.filter(insp => insp.riskLevel === filters.riskLevel);
     }
     
+    // Filtros por fecha
     if (filters.year && filters.year !== '') {
       filtered = filtered.filter(insp => {
         if (!insp.timestamp) return false;
@@ -111,29 +124,32 @@ const InspectorVehicularSystem = () => {
         }
       });
     }
-
-    if (filters.dayOfWeek && filters.dayOfWeek !== '') {
+    
+    if (filters.day && filters.day !== '') {
       filtered = filtered.filter(insp => {
         if (!insp.timestamp) return false;
         try {
           const date = new Date(insp.timestamp);
           if (isNaN(date.getTime())) return false;
-          return date.getDay().toString() === filters.dayOfWeek;
+          return date.getDate().toString() === filters.day;
         } catch {
           return false;
         }
       });
     }
     
+    // Filtro por rango de cumplimiento
     filtered = filtered.filter(insp => 
       insp.compliance >= filters.complianceMin && 
       insp.compliance <= filters.complianceMax
     );
     
+    // Filtro de items críticos
     if (filters.criticalItemsOnly) {
       filtered = filtered.filter(insp => insp.criticalFailures > 0);
     }
     
+    // Filtros por rango de fechas
     if (filters.dateStart || filters.dateEnd) {
       filtered = filtered.filter(insp => {
         if (!insp.timestamp) return false;
@@ -154,6 +170,16 @@ const InspectorVehicularSystem = () => {
     return filtered;
   }, [processedData, filters]);
 
+  // Función auxiliar para obtener nombre del mes
+  const getMonthName = (month) => {
+    const months = [
+      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    return months[month] || '';
+  };
+
+  // Componente de Login
   const LoginForm = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -250,6 +276,7 @@ const InspectorVehicularSystem = () => {
     );
   };
 
+  // Procesador de archivos Excel
   const processRealExcelData = useCallback(async (file) => {
     console.log('Iniciando procesamiento de archivo Excel:', file.name);
     setIsProcessing(true);
@@ -292,6 +319,7 @@ const InspectorVehicularSystem = () => {
       console.log('Análisis inicial:', dataRows.length, 'filas de datos,', headers.length, 'columnas');
       setProcessingProgress(40);
 
+      // Detección automática de columnas
       const detectedColumns = {
         timestamp: null,
         inspector: null,
@@ -364,6 +392,7 @@ const InspectorVehicularSystem = () => {
 
       setProcessingProgress(50);
 
+      // Procesamiento de inspecciones
       const processedInspections = [];
       
       dataRows.forEach((row, index) => {
@@ -485,7 +514,8 @@ const InspectorVehicularSystem = () => {
         shifts: [...new Set(validInspections.map(i => i.shift))].filter(s => s !== 'Sin especificar').sort(),
         inspectionItems: detectedColumns.inspectionItems.map(i => i.cleanName),
         years: [...new Set(validInspections.map(i => i.timestamp ? new Date(i.timestamp).getFullYear() : null))].filter(y => y).sort(),
-        months: [...new Set(validInspections.map(i => i.timestamp ? new Date(i.timestamp).getMonth() + 1 : null))].filter(m => m).sort()
+        months: [...new Set(validInspections.map(i => i.timestamp ? new Date(i.timestamp).getMonth() + 1 : null))].filter(m => m).sort(),
+        days: [...new Set(validInspections.map(i => i.timestamp ? new Date(i.timestamp).getDate() : null))].filter(d => d).sort((a, b) => a - b)
       };
 
       const totalCompliance = validInspections.reduce((sum, i) => sum + i.compliance, 0);
@@ -521,6 +551,8 @@ const InspectorVehicularSystem = () => {
           criticalItems: detectedColumns.inspectionItems.filter(i => i.isCritical).length
         }
       };
+
+      setProcessingProgress(90);
 
       const itemAnalysis = {};
       detectedColumns.inspectionItems.forEach(item => {
@@ -572,6 +604,7 @@ const InspectorVehicularSystem = () => {
     }, 1000);
   }, []);
 
+  // Componente de carga de archivos
   const FileUpload = () => {
     const [isDragging, setIsDragging] = useState(false);
 
@@ -663,28 +696,77 @@ const InspectorVehicularSystem = () => {
     );
   };
 
+  // Componente de filtros avanzados
   const AdvancedFilters = () => {
+    const [searchText, setSearchText] = useState(filters.search);
+    
     if (!processedData) return null;
+    
+    const getAvailableDays = () => {
+      if (!filters.year || !filters.month) {
+        return processedData.uniqueValues.days || [];
+      }
+      
+      const year = parseInt(filters.year);
+      const month = parseInt(filters.month);
+      
+      const availableDays = [...new Set(
+        processedData.inspections
+          .filter(insp => {
+            if (!insp.timestamp) return false;
+            const date = new Date(insp.timestamp);
+            return date.getFullYear() === year && (date.getMonth() + 1) === month;
+          })
+          .map(insp => new Date(insp.timestamp).getDate())
+      )].sort((a, b) => a - b);
+      
+      return availableDays;
+    };
+
+    const availableDays = getAvailableDays();
+
+    const handleInputChange = useCallback((field, value) => {
+      setFilters(prev => ({ ...prev, [field]: value }));
+    }, []);
+
+    const handleSearch = () => {
+      setFilters(prev => ({ ...prev, search: searchText }));
+    };
+
+    const handleKeyPress = (e) => {
+      if (e.key === 'Enter') {
+        handleSearch();
+      }
+    };
     
     return (
       <div className={`bg-white rounded-lg border p-4 mb-6 transition-all duration-300 ${showFilters ? 'block' : 'hidden'}`}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
-            <input
-              type="text"
-              value={filters.search}
-              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-              placeholder="Buscar conductor, placa, campo..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            />
+            <div className="flex">
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Buscar conductor, placa, campo..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                onClick={handleSearch}
+                className="px-3 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 border border-blue-600"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            </div>
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Conductor/Inspector</label>
             <select
               value={filters.inspector}
-              onChange={(e) => setFilters(prev => ({ ...prev, inspector: e.target.value }))}
+              onChange={(e) => handleInputChange('inspector', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Todos los conductores</option>
@@ -698,7 +780,7 @@ const InspectorVehicularSystem = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Vehículo (Placa)</label>
             <select
               value={filters.vehicle}
-              onChange={(e) => setFilters(prev => ({ ...prev, vehicle: e.target.value }))}
+              onChange={(e) => handleInputChange('vehicle', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Todos los vehículos</option>
@@ -712,7 +794,7 @@ const InspectorVehicularSystem = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Campo/Ubicación</label>
             <select
               value={filters.location}
-              onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
+              onChange={(e) => handleInputChange('location', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Todas las ubicaciones</option>
@@ -726,14 +808,14 @@ const InspectorVehicularSystem = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Nivel de Riesgo</label>
             <select
               value={filters.riskLevel}
-              onChange={(e) => setFilters(prev => ({ ...prev, riskLevel: e.target.value }))}
+              onChange={(e) => handleInputChange('riskLevel', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Todos los niveles</option>
-              <option value="Bajo">🟢 Bajo</option>
-              <option value="Medio">🟡 Medio</option>
-              <option value="Alto">🟠 Alto</option>
-              <option value="Crítico">🔴 Crítico</option>
+              <option value="Bajo">Bajo</option>
+              <option value="Medio">Medio</option>
+              <option value="Alto">Alto</option>
+              <option value="Crítico">Crítico</option>
             </select>
           </div>
           
@@ -741,7 +823,7 @@ const InspectorVehicularSystem = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Turno</label>
             <select
               value={filters.shift}
-              onChange={(e) => setFilters(prev => ({ ...prev, shift: e.target.value }))}
+              onChange={(e) => handleInputChange('shift', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Todos los turnos</option>
@@ -755,7 +837,7 @@ const InspectorVehicularSystem = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Año</label>
             <select
               value={filters.year}
-              onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value }))}
+              onChange={(e) => handleInputChange('year', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Todos los años</option>
@@ -769,7 +851,7 @@ const InspectorVehicularSystem = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Mes</label>
             <select
               value={filters.month}
-              onChange={(e) => setFilters(prev => ({ ...prev, month: e.target.value }))}
+              onChange={(e) => handleInputChange('month', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Todos los meses</option>
@@ -787,23 +869,49 @@ const InspectorVehicularSystem = () => {
               <option value="12">Diciembre</option>
             </select>
           </div>
-
+          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Día de la Semana</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Día {filters.year && filters.month && `(${getMonthName(parseInt(filters.month))} ${filters.year})`}
+            </label>
             <select
-              value={filters.dayOfWeek}
-              onChange={(e) => setFilters(prev => ({ ...prev, dayOfWeek: e.target.value }))}
+              value={filters.day}
+              onChange={(e) => handleInputChange('day', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              disabled={availableDays.length === 0}
             >
               <option value="">Todos los días</option>
-              <option value="0">Domingo</option>
-              <option value="1">Lunes</option>
-              <option value="2">Martes</option>
-              <option value="3">Miércoles</option>
-              <option value="4">Jueves</option>
-              <option value="5">Viernes</option>
-              <option value="6">Sábado</option>
+              {availableDays.map(day => (
+                <option key={day} value={day}>
+                  {day} {filters.year && filters.month && `(${day} de ${getMonthName(parseInt(filters.month))})`}
+                </option>
+              ))}
             </select>
+            {availableDays.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                Seleccione año y mes para ver días disponibles
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio</label>
+            <input
+              type="date"
+              value={filters.dateStart}
+              onChange={(e) => handleInputChange('dateStart', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Fin</label>
+            <input
+              type="date"
+              value={filters.dateEnd}
+              onChange={(e) => handleInputChange('dateEnd', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
           </div>
         </div>
         
@@ -813,40 +921,54 @@ const InspectorVehicularSystem = () => {
               <input
                 type="checkbox"
                 checked={filters.criticalItemsOnly}
-                onChange={(e) => setFilters(prev => ({ ...prev, criticalItemsOnly: e.target.checked }))}
+                onChange={(e) => handleInputChange('criticalItemsOnly', e.target.checked)}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="ml-2 text-sm text-gray-700">Solo fallas críticas</span>
             </label>
           </div>
           
-          <button
-            onClick={() => setFilters({
-              search: '',
-              inspector: '',
-              vehicle: '',
-              location: '',
-              contract: '',
-              shift: '',
-              year: '',
-              month: '',
-              dayOfWeek: '',
-              complianceMin: 0,
-              complianceMax: 100,
-              dateStart: '',
-              dateEnd: '',
-              riskLevel: '',
-              criticalItemsOnly: false
-            })}
-            className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-          >
-            Limpiar Filtros
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => {
+                setSearchText('');
+                setFilters({
+                  search: '',
+                  inspector: '',
+                  vehicle: '',
+                  location: '',
+                  contract: '',
+                  shift: '',
+                  year: '',
+                  month: '',
+                  day: '',
+                  complianceMin: 0,
+                  complianceMax: 100,
+                  dateStart: '',
+                  dateEnd: '',
+                  riskLevel: '',
+                  criticalItemsOnly: false
+                });
+              }}
+              className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+            >
+              Limpiar Filtros
+            </button>
+            
+            {filteredData && (
+              <div className="px-4 py-2 text-sm bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+                {filteredData.length} resultados
+                {filteredData.length !== systemStats?.totalInspections && 
+                  ` de ${systemStats?.totalInspections || 0} totales`}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
   };
 
+  // Dashboard principal
   const Dashboard = () => {
     if (!systemStats || !processedData || !filteredData) return null;
 
@@ -1044,336 +1166,19 @@ const InspectorVehicularSystem = () => {
     );
   };
 
-  const VehicleAnalysisNuevo = () => {
-    if (!processedData || !filteredData) return null;
-
-    const vehicleData = {};
-    
-    filteredData.forEach(insp => {
-      if (insp.vehicle && insp.vehicle !== 'Sin especificar') {
-        if (!vehicleData[insp.vehicle]) {
-          vehicleData[insp.vehicle] = {
-            plate: insp.vehicle,
-            inspections: [],
-            inspectors: new Set(),
-            locations: new Set(),
-            failures: {},
-            criticalFailures: {},
-            mileages: []
-          };
-        }
-        
-        vehicleData[insp.vehicle].inspections.push(insp);
-        vehicleData[insp.vehicle].inspectors.add(insp.inspector);
-        vehicleData[insp.vehicle].locations.add(insp.location);
-        vehicleData[insp.vehicle].mileages.push(insp.mileage || 0);
-        
-        Object.entries(insp.items || {}).forEach(([itemName, itemData]) => {
-          if (!itemData.compliant) {
-            if (!vehicleData[insp.vehicle].failures[itemName]) {
-              vehicleData[insp.vehicle].failures[itemName] = 0;
-            }
-            vehicleData[insp.vehicle].failures[itemName]++;
-            
-            if (itemData.isCritical) {
-              if (!vehicleData[insp.vehicle].criticalFailures[itemName]) {
-                vehicleData[insp.vehicle].criticalFailures[itemName] = 0;
-              }
-              vehicleData[insp.vehicle].criticalFailures[itemName]++;
-            }
-          }
-        });
-      }
-    });
-
-    const vehiculos = Object.values(vehicleData).map(vehicle => {
-      let totalItems = 0;
-      let compliantItems = 0;
-      let criticalFailures = 0;
-      let totalFailures = 0;
-
-      vehicle.inspections.forEach(insp => {
-        totalItems += insp.totalItems || 0;
-        compliantItems += insp.compliantItems || 0;
-        criticalFailures += insp.criticalFailures || 0;
-      });
-
-      totalFailures = Object.values(vehicle.failures).reduce((sum, count) => sum + count, 0);
-      const compliance = totalItems > 0 ? (compliantItems / totalItems) * 100 : 0;
-      
-      let status = 'verde';
-      if (criticalFailures > 5 || compliance < 70) status = 'rojo';
-      else if (criticalFailures > 2 || compliance < 85) status = 'amarillo';
-
-      let risk = 'Bajo';
-      if (criticalFailures > 10 || compliance < 60) risk = 'Crítico';
-      else if (criticalFailures > 5 || compliance < 75) risk = 'Alto';
-      else if (criticalFailures > 2 || compliance < 90) risk = 'Medio';
-
-      const validMileages = vehicle.mileages.filter(m => m > 0);
-      const avgMileage = validMileages.length > 0 ? 
-        validMileages.reduce((sum, m) => sum + m, 0) / validMileages.length : 0;
-
-      const topFailures = Object.entries(vehicle.failures)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 5);
-
-      const topCriticalFailures = Object.entries(vehicle.criticalFailures)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 3);
-
-      return {
-        plate: vehicle.plate,
-        totalInspections: vehicle.inspections.length,
-        compliance: Math.round(compliance * 100) / 100,
-        totalItems,
-        compliantItems,
-        criticalFailures,
-        totalFailures,
-        inspectorCount: vehicle.inspectors.size,
-        locationCount: vehicle.locations.size,
-        status,
-        risk,
-        avgMileage: Math.round(avgMileage),
-        topFailures,
-        topCriticalFailures
-      };
-    }).sort((a, b) => b.criticalFailures - a.criticalFailures);
-
-    const verdes = vehiculos.filter(v => v.status === 'verde');
-    const amarillos = vehiculos.filter(v => v.status === 'amarillo');
-    const rojos = vehiculos.filter(v => v.status === 'rojo');
-
-    if (vehiculos.length === 0) {
-      return (
-        <div className="bg-white rounded-xl p-8 shadow-sm border text-center">
-          <Car className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">
-            No hay datos de vehículos disponibles
-          </h3>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg p-4 shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total Vehículos</p>
-                <p className="text-xl font-bold text-gray-800">{vehiculos.length}</p>
-              </div>
-              <Car className="w-8 h-8 text-blue-600" />
-            </div>
-          </div>
-          
-          <div className="bg-green-50 rounded-lg p-4 shadow-sm border border-green-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-green-700">Estado Óptimo</p>
-                <p className="text-xl font-bold text-green-800">{verdes.length}</p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-          </div>
-          
-          <div className="bg-yellow-50 rounded-lg p-4 shadow-sm border border-yellow-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-yellow-700">Requiere Atención</p>
-                <p className="text-xl font-bold text-yellow-800">{amarillos.length}</p>
-              </div>
-              <AlertTriangle className="w-8 h-8 text-yellow-600" />
-            </div>
-          </div>
-          
-          <div className="bg-red-50 rounded-lg p-4 shadow-sm border border-red-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-red-700">Estado Crítico</p>
-                <p className="text-xl font-bold text-red-800">{rojos.length}</p>
-              </div>
-              <XCircle className="w-8 h-8 text-red-600" />
-            </div>
-          </div>
-        </div>
-
-        {rojos.length > 0 && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center">
-                <XCircle className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-red-800">
-                Vehículos en Estado Crítico
-              </h3>
-              <div className="px-3 py-1 rounded-full text-sm font-bold bg-red-600 text-white">
-                {rojos.length}
-              </div>
-            </div>
-            
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {rojos.slice(0, 10).map(vehicle => (
-                <div key={vehicle.plate} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1">
-                      <h4 className="font-bold text-lg text-gray-800 mb-1">
-                        Placa: {vehicle.plate}
-                      </h4>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-lg font-bold text-red-600">
-                          {vehicle.compliance.toFixed(1)}% cumplimiento
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          ({vehicle.compliantItems}/{vehicle.totalItems} items)
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500 mb-1">Fallas críticas:</div>
-                      <div className="text-2xl font-bold text-red-600">
-                        {vehicle.criticalFailures}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {vehicle.totalFailures} fallas totales
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
-                    <div><span className="font-semibold">Inspecciones:</span> {vehicle.totalInspections}</div>
-                    <div><span className="font-semibold">Kilometraje prom:</span> {vehicle.avgMileage.toLocaleString()}</div>
-                    <div><span className="font-semibold">Conductores:</span> {vehicle.inspectorCount}</div>
-                    <div><span className="font-semibold">Ubicaciones:</span> {vehicle.locationCount}</div>
-                  </div>
-                  
-                  {vehicle.topCriticalFailures.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-sm font-semibold text-red-700 mb-2">
-                        Fallas críticas más frecuentes:
-                      </p>
-                      <div className="space-y-1">
-                        {vehicle.topCriticalFailures.map(([item, count], index) => (
-                          <div key={index} className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                            {item.replace(/^\*\*/, '')}: {count} veces
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                    <span className="text-sm text-red-700 font-bold bg-red-100 px-3 py-1 rounded border border-red-300">
-                      MANTENIMIENTO URGENTE
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {amarillos.length > 0 && (
-          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-6 h-6 rounded-full bg-yellow-600 flex items-center justify-center">
-                <AlertTriangle className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-yellow-800">
-                Vehículos que Requieren Atención
-              </h3>
-              <div className="px-3 py-1 rounded-full text-sm font-bold bg-yellow-600 text-white">
-                {amarillos.length}
-              </div>
-            </div>
-            
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {amarillos.slice(0, 10).map(vehicle => (
-                <div key={vehicle.plate} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1">
-                      <h4 className="font-bold text-lg text-gray-800 mb-1">
-                        Placa: {vehicle.plate}
-                      </h4>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-lg font-bold text-yellow-600">
-                          {vehicle.compliance.toFixed(1)}% cumplimiento
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          ({vehicle.compliantItems}/{vehicle.totalItems} items)
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                    <span className="text-sm text-yellow-700 font-bold bg-yellow-100 px-3 py-1 rounded border border-yellow-300">
-                      Programar Mantenimiento
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {verdes.length > 0 && (
-          <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center">
-                <CheckCircle className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-green-800">
-                Vehículos en Estado Óptimo
-              </h3>
-              <div className="px-3 py-1 rounded-full text-sm font-bold bg-green-600 text-white">
-                {verdes.length}
-              </div>
-            </div>
-            
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {verdes.slice(0, 15).map(vehicle => (
-                <div key={vehicle.plate} className="bg-white rounded-lg p-4 border-2 border-gray-200 shadow-md">
-                  <div className="flex justify-between items-center">
-                    <div className="flex-1">
-                      <h4 className="font-bold text-lg text-gray-800 mb-1">
-                        Placa: {vehicle.plate}
-                      </h4>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-lg font-bold text-green-600">
-                          {vehicle.compliance.toFixed(1)}% cumplimiento
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          ({vehicle.compliantItems}/{vehicle.totalItems} items)
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <span className="text-sm text-green-700 font-bold bg-green-100 px-3 py-1 rounded border border-green-300 ml-4">
-                      Estado Óptimo
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
+  // Análisis de conductores
   const ConductorAnalysisNuevo = () => {
     if (!processedData || !filteredData) return null;
 
     const today = new Date();
-    const conductorData = {};
+    const conductorDataFiltered = {};
+    const conductorDataAll = {};
     
+    // Usar datos filtrados para mostrar solo conductores en el rango de fechas
     filteredData.forEach(insp => {
       if (insp.inspector && insp.inspector !== 'Sin especificar') {
-        if (!conductorData[insp.inspector]) {
-          conductorData[insp.inspector] = {
+        if (!conductorDataFiltered[insp.inspector]) {
+          conductorDataFiltered[insp.inspector] = {
             name: insp.inspector,
             inspections: [],
             vehicles: new Set(),
@@ -1381,42 +1186,74 @@ const InspectorVehicularSystem = () => {
           };
         }
         
-        conductorData[insp.inspector].inspections.push(insp);
-        conductorData[insp.inspector].vehicles.add(insp.vehicle);
-        conductorData[insp.inspector].locations.add(insp.location);
+        conductorDataFiltered[insp.inspector].inspections.push(insp);
+        conductorDataFiltered[insp.inspector].vehicles.add(insp.vehicle);
+        conductorDataFiltered[insp.inspector].locations.add(insp.location);
       }
     });
 
-    const conductores = Object.values(conductorData).map(conductor => {
+    // Usar TODOS los datos para calcular la última fecha de inspección (para días desde última inspección)
+    processedData.inspections.forEach(insp => {
+      if (insp.inspector && insp.inspector !== 'Sin especificar') {
+        if (!conductorDataAll[insp.inspector]) {
+          conductorDataAll[insp.inspector] = {
+            name: insp.inspector,
+            inspections: []
+          };
+        }
+        conductorDataAll[insp.inspector].inspections.push(insp);
+      }
+    });
+
+    const conductores = Object.values(conductorDataFiltered).map(conductor => {
       let totalItems = 0;
       let compliantItems = 0;
       let criticalFailures = 0;
-      let lastDate = null;
+      let lastDateGlobal = null;
 
+      // Calcular estadísticas basadas en datos FILTRADOS
       conductor.inspections.forEach(insp => {
         totalItems += insp.totalItems || 0;
         compliantItems += insp.compliantItems || 0;
         criticalFailures += insp.criticalFailures || 0;
-        
-        if (insp.timestamp) {
-          const date = new Date(insp.timestamp);
-          if (!lastDate || date > lastDate) {
-            lastDate = date;
-          }
-        }
       });
+
+      // Calcular última fecha de inspección usando TODOS los datos
+      const allInspectionsForConductor = conductorDataAll[conductor.name];
+      if (allInspectionsForConductor) {
+        allInspectionsForConductor.inspections.forEach(insp => {
+          if (insp.timestamp) {
+            let date;
+            try {
+              date = new Date(insp.timestamp);
+              if (!isNaN(date.getTime())) {
+                if (!lastDateGlobal || date > lastDateGlobal) {
+                  lastDateGlobal = date;
+                }
+              }
+            } catch (error) {
+              console.log('Error procesando fecha para conductor:', conductor.name, insp.timestamp);
+            }
+          }
+        });
+      }
 
       const compliance = totalItems > 0 ? (compliantItems / totalItems) * 100 : 0;
       
       let daysSince = 999;
-      if (lastDate) {
-        const timeDiff = today.getTime() - lastDate.getTime();
+      if (lastDateGlobal && !isNaN(lastDateGlobal.getTime())) {
+        const timeDiff = today.getTime() - lastDateGlobal.getTime();
         daysSince = Math.floor(timeDiff / (1000 * 3600 * 24));
+        if (daysSince < 0) daysSince = 0;
       }
 
+      // Lógica de categorización
       let status = 'rojo';
-      if (daysSince <= 5) status = 'verde';
-      else if (daysSince <= 10) status = 'amarillo';
+      if (daysSince <= 5) {
+        status = 'verde';
+      } else if (daysSince <= 10) {
+        status = 'amarillo';
+      }
 
       let risk = 'Bajo';
       if (compliance < 70) risk = 'Crítico';
@@ -1426,13 +1263,14 @@ const InspectorVehicularSystem = () => {
       return {
         name: conductor.name,
         totalInspections: conductor.inspections.length,
+        totalInspectionsGlobal: allInspectionsForConductor ? allInspectionsForConductor.inspections.length : 0,
         compliance: Math.round(compliance * 100) / 100,
         totalItems,
         compliantItems,
         criticalFailures,
         vehicleCount: conductor.vehicles.size,
         locationCount: conductor.locations.size,
-        lastDate,
+        lastDate: lastDateGlobal,
         daysSince,
         status,
         risk
@@ -1443,25 +1281,78 @@ const InspectorVehicularSystem = () => {
     const amarillos = conductores.filter(c => c.status === 'amarillo');
     const rojos = conductores.filter(c => c.status === 'rojo');
 
+    // Debug logging
+    console.log('ANÁLISIS CONDUCTORES FILTRADOS DEBUG:', {
+      filtrosActivos: {
+        dateStart: filters.dateStart,
+        dateEnd: filters.dateEnd,
+        search: filters.search,
+        inspector: filters.inspector
+      },
+      totalConductoresFiltrados: conductores.length,
+      totalInspeccionesFiltradas: filteredData.length,
+      totalInspeccionesTotales: processedData.inspections.length,
+      verdes: verdes.length,
+      amarillos: amarillos.length,
+      rojos: rojos.length,
+      muestraCalculos: conductores.slice(0, 3).map(c => ({
+        nombre: c.name,
+        inspeccionesFiltradas: c.totalInspections,
+        inspeccionesTotales: c.totalInspectionsGlobal,
+        ultimaFecha: c.lastDate ? c.lastDate.toISOString() : 'Sin fecha',
+        diasSinInspeccion: c.daysSince,
+        status: c.status
+      }))
+    });
+
     if (conductores.length === 0) {
       return (
         <div className="bg-white rounded-xl p-8 shadow-sm border text-center">
           <User className="w-16 h-16 mx-auto text-gray-400 mb-4" />
           <h3 className="text-xl font-semibold text-gray-700 mb-2">
-            No hay datos de conductores disponibles
+            No hay conductores en el rango de fechas seleccionado
           </h3>
+          <p className="text-gray-500">
+            {filters.dateStart || filters.dateEnd ? 
+              `Rango: ${filters.dateStart || 'Sin inicio'} - ${filters.dateEnd || 'Sin fin'}` :
+              'Ajuste los filtros para ver resultados'
+            }
+          </p>
         </div>
       );
     }
 
     return (
       <div className="space-y-6">
+        {/* Información de filtros aplicados */}
+        {(filters.dateStart || filters.dateEnd || filters.search || filters.inspector || filters.vehicle) && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Filter className="w-5 h-5 text-indigo-600" />
+              <h3 className="font-semibold text-indigo-800">Filtros Aplicados</h3>
+            </div>
+            <div className="text-sm text-indigo-700">
+              {filters.dateStart && <span className="mr-4"><strong>Desde:</strong> {filters.dateStart}</span>}
+              {filters.dateEnd && <span className="mr-4"><strong>Hasta:</strong> {filters.dateEnd}</span>}
+              {filters.search && <span className="mr-4"><strong>Búsqueda:</strong> "{filters.search}"</span>}
+              {filters.inspector && <span className="mr-4"><strong>Conductor:</strong> {filters.inspector}</span>}
+              {filters.vehicle && <span className="mr-4"><strong>Vehículo:</strong> {filters.vehicle}</span>}
+              <div className="mt-2">
+                <strong>Mostrando:</strong> {filteredData.length} inspecciones de {processedData.inspections.length} totales
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg p-4 shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Conductores</p>
+                <p className="text-sm text-gray-500">Conductores en Filtro</p>
                 <p className="text-xl font-bold text-gray-800">{conductores.length}</p>
+                <p className="text-xs text-gray-500">
+                  de {Object.keys(conductorDataAll).length} totales
+                </p>
               </div>
               <User className="w-8 h-8 text-blue-600" />
             </div>
@@ -1472,6 +1363,9 @@ const InspectorVehicularSystem = () => {
               <div>
                 <p className="text-sm text-green-700">Al Día (≤5 días)</p>
                 <p className="text-xl font-bold text-green-800">{verdes.length}</p>
+                <p className="text-xs text-green-600">
+                  {verdes.length > 0 && `${verdes[0].daysSince} días mín.`}
+                </p>
               </div>
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
@@ -1482,6 +1376,9 @@ const InspectorVehicularSystem = () => {
               <div>
                 <p className="text-sm text-yellow-700">Próximo Vencimiento (6-10 días)</p>
                 <p className="text-xl font-bold text-yellow-800">{amarillos.length}</p>
+                <p className="text-xs text-yellow-600">
+                  {amarillos.length > 0 && `${amarillos[0].daysSince} días mín.`}
+                </p>
               </div>
               <Clock className="w-8 h-8 text-yellow-600" />
             </div>
@@ -1492,167 +1389,617 @@ const InspectorVehicularSystem = () => {
               <div>
                 <p className="text-sm text-red-700">Vencidos (&gt;10 días)</p>
                 <p className="text-xl font-bold text-red-800">{rojos.length}</p>
+                <p className="text-xs text-red-600">
+                  {rojos.length > 0 && rojos.filter(r => r.daysSince < 999).length > 0 && 
+                    `${Math.min(...rojos.filter(r => r.daysSince < 999).map(r => r.daysSince))} días mín.`}
+                </p>
               </div>
               <AlertTriangle className="w-8 h-8 text-red-600" />
             </div>
           </div>
         </div>
 
-        {verdes.length > 0 && (
-          <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <AlertCircle className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-blue-800">Validación de Datos Filtrados</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Cumplimiento en Período:</span><br />
+                {conductores.length > 0 ? 
+                  (conductores.reduce((sum, c) => sum + c.compliance, 0) / conductores.length).toFixed(2) : 0
+                }%
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Items Evaluados (Filtro):</span><br />
+                {conductores.reduce((sum, c) => sum + c.totalItems, 0).toLocaleString()} totales
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Items Cumplidos (Filtro):</span><br />
+                {conductores.reduce((sum, c) => sum + c.compliantItems, 0).toLocaleString()} cumplidos
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {[
+          { data: verdes, color: 'green', title: 'Conductores Al Día (≤5 días)', icon: CheckCircle, status: 'Al día' },
+          { data: amarillos, color: 'yellow', title: 'Conductores Próximos a Vencer (6-10 días)', icon: Clock, status: 'Próximo a vencer' },
+          { data: rojos, color: 'red', title: 'Conductores con Inspecciones Vencidas (>10 días)', icon: AlertTriangle, status: 'INSPECCIÓN URGENTE' }
+        ].map(({ data, color, title, icon: Icon, status }, idx) => (
+          <div key={idx} className={`bg-${color}-50 border-2 border-${color}-300 rounded-xl p-6`}>
             <div className="flex items-center space-x-3 mb-6">
-              <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center">
-                <CheckCircle className="w-4 h-4 text-white" />
+              <div className={`w-6 h-6 rounded-full bg-${color}-600 flex items-center justify-center`}>
+                <Icon className="w-4 h-4 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-green-800">
-                Conductores Al Día (≤5 días)
+              <h3 className={`text-xl font-bold text-${color}-800`}>
+                {title}
               </h3>
-              <div className="px-3 py-1 rounded-full text-sm font-bold bg-green-600 text-white">
-                {verdes.length}
+              <div className={`px-3 py-1 rounded-full text-sm font-bold bg-${color}-600 text-white`}>
+                {data.length}
               </div>
             </div>
             
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {verdes.map(conductor => (
-                <div key={conductor.name} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1">
-                      <h4 className="font-bold text-lg text-gray-800 mb-1">{conductor.name}</h4>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-lg font-bold text-green-600">
-                          {conductor.compliance.toFixed(1)}% cumplimiento
+            {data.length === 0 ? (
+              <div className="text-center py-8">
+                <p className={`text-lg text-${color}-800 opacity-75`}>
+                  No hay conductores en esta categoría (en el período filtrado)
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {data.map(conductor => (
+                  <div key={conductor.name} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-lg text-gray-800 mb-1">{conductor.name}</h4>
+                        <div className="flex items-center space-x-4">
+                          <div className={`text-lg font-bold text-${color}-600`}>
+                            {conductor.compliance.toFixed(1)}% cumplimiento
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            ({conductor.compliantItems}/{conductor.totalItems} items)
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-600">
-                          ({conductor.compliantItems}/{conductor.totalItems} items)
+                      </div>
+                      
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500 mb-1">Última inspección global:</div>
+                        <div className="font-bold text-gray-800">
+                          {conductor.lastDate ? 
+                            conductor.lastDate.toLocaleDateString('es-CO', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            }) : 
+                            'Sin registro'
+                          }
+                        </div>
+                        <div className={`text-xl font-bold mt-1 text-${color}-600`}>
+                          {conductor.daysSince === 999 ? 
+                            'Sin fecha' : 
+                            `${conductor.daysSince} días atrás`
+                          }
                         </div>
                       </div>
                     </div>
                     
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500 mb-1">Última inspección:</div>
-                      <div className="font-bold text-gray-800">
-                        {conductor.lastDate ? 
-                          conductor.lastDate.toLocaleDateString('es-CO', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          }) : 
-                          'Sin registro'
-                        }
-                      </div>
-                      <div className="text-xl font-bold mt-1 text-green-600">
-                        {conductor.daysSince === 999 ? 
-                          'Sin fecha' : 
-                          `${conductor.daysSince} días atrás`
-                        }
+                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                      <div><span className="font-semibold">Inspecciones (período):</span> {conductor.totalInspections}</div>
+                      <div><span className="font-semibold">Inspecciones (total):</span> {conductor.totalInspectionsGlobal}</div>
+                      <div><span className="font-semibold">Vehículos:</span> {conductor.vehicleCount}</div>
+                      <div>
+                        <span className="font-semibold">Fallas críticas:</span> 
+                        <span className={conductor.criticalFailures > 0 ? 'text-red-600 font-bold ml-1' : 'ml-1'}>
+                          {conductor.criticalFailures}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
-                    <div><span className="font-semibold">Inspecciones:</span> {conductor.totalInspections}</div>
-                    <div><span className="font-semibold">Vehículos:</span> {conductor.vehicleCount}</div>
-                    <div>
-                      <span className="font-semibold">Fallas críticas:</span> 
-                      <span className={conductor.criticalFailures > 0 ? 'text-red-600 font-bold ml-1' : 'ml-1'}>
-                        {conductor.criticalFailures}
+                    
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        conductor.risk === 'Bajo' ? 'bg-green-100 text-green-800 border border-green-300' :
+                        conductor.risk === 'Medio' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
+                        conductor.risk === 'Alto' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                        'bg-red-100 text-red-800 border border-red-300'
+                      }`}>
+                        Riesgo: {conductor.risk}
+                      </span>
+                      <span className={`text-sm text-${color}-700 font-bold bg-${color}-100 px-3 py-1 rounded border border-${color}-300`}>
+                        {status}
                       </span>
                     </div>
-                    <div><span className="font-semibold">Ubicaciones:</span> {conductor.locationCount}</div>
                   </div>
-                  
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                    <span className="text-sm text-green-700 font-bold bg-green-100 px-3 py-1 rounded border border-green-300">
-                      Al día
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-
-        {amarillos.length > 0 && (
-          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-6 h-6 rounded-full bg-yellow-600 flex items-center justify-center">
-                <Clock className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-yellow-800">
-                Conductores Próximos a Vencer (6-10 días)
-              </h3>
-              <div className="px-3 py-1 rounded-full text-sm font-bold bg-yellow-600 text-white">
-                {amarillos.length}
-              </div>
-            </div>
-            
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {amarillos.map(conductor => (
-                <div key={conductor.name} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1">
-                      <h4 className="font-bold text-lg text-gray-800 mb-1">{conductor.name}</h4>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-lg font-bold text-yellow-600">
-                          {conductor.compliance.toFixed(1)}% cumplimiento
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                    <span className="text-sm text-yellow-700 font-bold bg-yellow-100 px-3 py-1 rounded border border-yellow-300">
-                      Próximo a vencer
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {rojos.length > 0 && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center">
-                <AlertTriangle className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-red-800">
-                Conductores con Inspecciones Vencidas (&gt;10 días)
-              </h3>
-              <div className="px-3 py-1 rounded-full text-sm font-bold bg-red-600 text-white">
-                {rojos.length}
-              </div>
-            </div>
-            
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {rojos.map(conductor => (
-                <div key={conductor.name} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow-md">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1">
-                      <h4 className="font-bold text-lg text-gray-800 mb-1">{conductor.name}</h4>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-lg font-bold text-red-600">
-                          {conductor.compliance.toFixed(1)}% cumplimiento
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                    <span className="text-sm text-red-700 font-bold bg-red-100 px-3 py-1 rounded border border-red-300">
-                      INSPECCIÓN URGENTE
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        ))}
       </div>
     );
   };
 
+  // Análisis de vehículos
+  const VehicleAnalysis = () => {
+    if (!processedData || !filteredData) return null;
+
+    const vehicleDataFiltered = {};
+    const vehicleDataAll = {};
+    
+    // Usar datos filtrados para mostrar solo vehículos en el rango de fechas
+    filteredData.forEach(insp => {
+      if (insp.vehicle && insp.vehicle !== 'Sin especificar') {
+        if (!vehicleDataFiltered[insp.vehicle]) {
+          vehicleDataFiltered[insp.vehicle] = {
+            plate: insp.vehicle,
+            inspections: [],
+            inspectors: new Set(),
+            locations: new Set(),
+            contracts: new Set(),
+            shifts: new Set(),
+            failedItems: {},
+            criticalFailures: 0,
+            totalFailures: 0,
+            lastInspection: null
+          };
+        }
+        
+        vehicleDataFiltered[insp.vehicle].inspections.push(insp);
+        vehicleDataFiltered[insp.vehicle].inspectors.add(insp.inspector);
+        vehicleDataFiltered[insp.vehicle].locations.add(insp.location);
+        vehicleDataFiltered[insp.vehicle].contracts.add(insp.contract);
+        vehicleDataFiltered[insp.vehicle].shifts.add(insp.shift);
+        
+        // Analizar items fallidos en el período filtrado
+        Object.entries(insp.items || {}).forEach(([itemName, itemData]) => {
+          if (!itemData.compliant) {
+            if (!vehicleDataFiltered[insp.vehicle].failedItems[itemName]) {
+              vehicleDataFiltered[insp.vehicle].failedItems[itemName] = {
+                name: itemName,
+                isCritical: itemData.isCritical,
+                failureCount: 0,
+                totalChecks: 0,
+                recentFailures: []
+              };
+            }
+            
+            vehicleDataFiltered[insp.vehicle].failedItems[itemName].failureCount++;
+            vehicleDataFiltered[insp.vehicle].failedItems[itemName].recentFailures.push({
+              date: insp.timestamp,
+              inspector: insp.inspector,
+              location: insp.location
+            });
+            
+            vehicleDataFiltered[insp.vehicle].totalFailures++;
+            
+            if (itemData.isCritical) {
+              vehicleDataFiltered[insp.vehicle].criticalFailures++;
+            }
+          }
+          
+          if (vehicleDataFiltered[insp.vehicle].failedItems[itemName]) {
+            vehicleDataFiltered[insp.vehicle].failedItems[itemName].totalChecks++;
+          }
+        });
+      }
+    });
+
+    // Usar todos los datos para calcular última inspección global
+    processedData.inspections.forEach(insp => {
+      if (insp.vehicle && insp.vehicle !== 'Sin especificar') {
+        if (!vehicleDataAll[insp.vehicle]) {
+          vehicleDataAll[insp.vehicle] = {
+            inspections: [],
+            lastInspection: null
+          };
+        }
+        
+        vehicleDataAll[insp.vehicle].inspections.push(insp);
+        
+        if (insp.timestamp) {
+          const date = new Date(insp.timestamp);
+          if (!vehicleDataAll[insp.vehicle].lastInspection || date > vehicleDataAll[insp.vehicle].lastInspection) {
+            vehicleDataAll[insp.vehicle].lastInspection = date;
+          }
+        }
+      }
+    });
+
+    const vehicles = Object.values(vehicleDataFiltered).map(vehicle => {
+      let totalItems = 0;
+      let compliantItems = 0;
+      
+      // Calcular estadísticas basadas en datos filtrados
+      vehicle.inspections.forEach(insp => {
+        totalItems += insp.totalItems || 0;
+        compliantItems += insp.compliantItems || 0;
+      });
+
+      const compliance = totalItems > 0 ? (compliantItems / totalItems) * 100 : 0;
+      const failureRate = totalItems > 0 ? (vehicle.totalFailures / totalItems) * 100 : 0;
+      
+      // Usar última inspección global para calcular días
+      const vehicleGlobal = vehicleDataAll[vehicle.plate];
+      const today = new Date();
+      let daysSince = 999;
+      if (vehicleGlobal && vehicleGlobal.lastInspection) {
+        const timeDiff = today.getTime() - vehicleGlobal.lastInspection.getTime();
+        daysSince = Math.floor(timeDiff / (1000 * 3600 * 24));
+      }
+
+      // Determinar estado de mantenimiento basado en datos filtrados
+      let maintenanceStatus = 'critico';
+      if (vehicle.criticalFailures === 0 && compliance >= 95) maintenanceStatus = 'excelente';
+      else if (vehicle.criticalFailures <= 1 && compliance >= 90) maintenanceStatus = 'bueno';
+      else if (vehicle.criticalFailures <= 3 && compliance >= 80) maintenanceStatus = 'regular';
+
+      const topFailedItems = Object.values(vehicle.failedItems)
+        .sort((a, b) => b.failureCount - a.failureCount)
+        .slice(0, 5);
+
+      return {
+        plate: vehicle.plate,
+        totalInspections: vehicle.inspections.length,
+        totalInspectionsGlobal: vehicleGlobal ? vehicleGlobal.inspections.length : 0,
+        compliance: Math.round(compliance * 100) / 100,
+        failureRate: Math.round(failureRate * 100) / 100,
+        totalItems,
+        compliantItems,
+        totalFailures: vehicle.totalFailures,
+        criticalFailures: vehicle.criticalFailures,
+        inspectorCount: vehicle.inspectors.size,
+        locationCount: vehicle.locations.size,
+        contractCount: vehicle.contracts.size,
+        shiftCount: vehicle.shifts.size,
+        lastInspection: vehicleGlobal ? vehicleGlobal.lastInspection : null,
+        daysSince,
+        maintenanceStatus,
+        topFailedItems,
+        failedItemsCount: Object.keys(vehicle.failedItems).length
+      };
+    }).sort((a, b) => b.totalFailures - a.totalFailures);
+
+    // Análisis global de items problemáticos (basado en datos filtrados)
+    const globalFailedItems = {};
+    Object.values(vehicleDataFiltered).forEach(vehicle => {
+      Object.values(vehicle.failedItems).forEach(item => {
+        if (!globalFailedItems[item.name]) {
+          globalFailedItems[item.name] = {
+            name: item.name,
+            isCritical: item.isCritical,
+            totalFailures: 0,
+            affectedVehicles: new Set(),
+            failureRate: 0
+          };
+        }
+        
+        globalFailedItems[item.name].totalFailures += item.failureCount;
+        globalFailedItems[item.name].affectedVehicles.add(vehicle.plate);
+      });
+    });
+
+    const topProblematicItems = Object.values(globalFailedItems)
+      .map(item => ({
+        ...item,
+        affectedVehicleCount: item.affectedVehicles.size,
+        affectedVehicles: Array.from(item.affectedVehicles)
+      }))
+      .sort((a, b) => b.totalFailures - a.totalFailures)
+      .slice(0, 10);
+
+    const excelentes = vehicles.filter(v => v.maintenanceStatus === 'excelente');
+    const buenos = vehicles.filter(v => v.maintenanceStatus === 'bueno');
+    const regulares = vehicles.filter(v => v.maintenanceStatus === 'regular');
+    const criticos = vehicles.filter(v => v.maintenanceStatus === 'critico');
+
+    if (vehicles.length === 0) {
+      return (
+        <div className="bg-white rounded-xl p-8 shadow-sm border text-center">
+          <Car className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">
+            No hay vehículos en el rango de fechas seleccionado
+          </h3>
+          <p className="text-gray-500">
+            {filters.dateStart || filters.dateEnd ? 
+              `Rango: ${filters.dateStart || 'Sin inicio'} - ${filters.dateEnd || 'Sin fin'}` :
+              'Ajuste los filtros para ver resultados'
+            }
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Información de filtros aplicados */}
+        {(filters.dateStart || filters.dateEnd || filters.search || filters.inspector || filters.vehicle) && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Filter className="w-5 h-5 text-indigo-600" />
+              <h3 className="font-semibold text-indigo-800">Filtros Aplicados - Análisis de Vehículos</h3>
+            </div>
+            <div className="text-sm text-indigo-700">
+              {filters.dateStart && <span className="mr-4"><strong>Desde:</strong> {filters.dateStart}</span>}
+              {filters.dateEnd && <span className="mr-4"><strong>Hasta:</strong> {filters.dateEnd}</span>}
+              {filters.search && <span className="mr-4"><strong>Búsqueda:</strong> "{filters.search}"</span>}
+              {filters.inspector && <span className="mr-4"><strong>Conductor:</strong> {filters.inspector}</span>}
+              {filters.vehicle && <span className="mr-4"><strong>Vehículo:</strong> {filters.vehicle}</span>}
+              <div className="mt-2">
+                <strong>Mostrando:</strong> {filteredData.length} inspecciones de {processedData.inspections.length} totales
+                | {vehicles.length} vehículos de {Object.keys(vehicleDataAll).length} totales
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Resumen ejecutivo */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Vehículos en Filtro</p>
+                <p className="text-xl font-bold text-gray-800">{vehicles.length}</p>
+                <p className="text-xs text-gray-500">
+                  de {Object.keys(vehicleDataAll).length} totales
+                </p>
+              </div>
+              <Car className="w-8 h-8 text-blue-600" />
+            </div>
+          </div>
+          
+          <div className="bg-green-50 rounded-lg p-4 shadow-sm border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-green-700">Excelente Estado</p>
+                <p className="text-xl font-bold text-green-800">{excelentes.length}</p>
+              </div>
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+          </div>
+          
+          <div className="bg-blue-50 rounded-lg p-4 shadow-sm border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-blue-700">Buen Estado</p>
+                <p className="text-xl font-bold text-blue-800">{buenos.length}</p>
+              </div>
+              <Gauge className="w-8 h-8 text-blue-600" />
+            </div>
+          </div>
+          
+          <div className="bg-yellow-50 rounded-lg p-4 shadow-sm border border-yellow-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-yellow-700">Estado Regular</p>
+                <p className="text-xl font-bold text-yellow-800">{regulares.length}</p>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-yellow-600" />
+            </div>
+          </div>
+          
+          <div className="bg-red-50 rounded-lg p-4 shadow-sm border border-red-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-red-700">Estado Crítico</p>
+                <p className="text-xl font-bold text-red-800">{criticos.length}</p>
+              </div>
+              <XCircle className="w-8 h-8 text-red-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <AlertCircle className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-blue-800">Análisis de Fallas en Período Filtrado</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Total Fallas (Período):</span><br />
+                {vehicles.reduce((sum, v) => sum + v.totalFailures, 0).toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Fallas Críticas (Período):</span><br />
+                {vehicles.reduce((sum, v) => sum + v.criticalFailures, 0).toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Items Problemáticos:</span><br />
+                {topProblematicItems.length} tipos identificados
+              </p>
+            </div>
+            <div>
+              <p className="text-blue-700">
+                <span className="font-semibold">Cumplimiento en Período:</span><br />
+                {vehicles.length > 0 ? 
+                  (vehicles.reduce((sum, v) => sum + v.compliance, 0) / vehicles.length).toFixed(2) : 0
+                }%
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {topProblematicItems.length > 0 && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+              <AlertTriangle className="w-6 h-6 text-red-500 mr-2" />
+              Items que Más Fallan (en período filtrado)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+              {topProblematicItems.map((item, index) => (
+                <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      {item.isCritical && (
+                        <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                      )}
+                      <h4 className="font-semibold text-red-900">{item.name}</h4>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-red-700">{item.totalFailures}</div>
+                      <div className="text-xs text-red-600">fallas en período</div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-red-800">
+                    <p><span className="font-semibold">Vehículos afectados:</span> {item.affectedVehicleCount}</p>
+                    <p className="text-xs text-red-600 mt-1">
+                      {item.affectedVehicles.slice(0, 3).join(', ')}
+                      {item.affectedVehicles.length > 3 && ` (+${item.affectedVehicles.length - 3} más)`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {[criticos, regulares, buenos, excelentes].map((vehicleGroup, groupIndex) => {
+          const groupConfig = [
+            { color: 'red', title: 'Vehículos en Estado Crítico - Mantenimiento URGENTE', icon: XCircle, status: 'MANTENIMIENTO INMEDIATO' },
+            { color: 'yellow', title: 'Vehículos en Estado Regular - Mantenimiento Requerido', icon: AlertTriangle, status: 'Mantenimiento programado' },
+            { color: 'blue', title: 'Vehículos en Buen Estado', icon: Gauge, status: 'Buen estado' },
+            { color: 'green', title: 'Vehículos en Excelente Estado', icon: CheckCircle, status: 'Excelente' }
+          ][groupIndex];
+
+          return (
+            <div key={groupIndex} className={`bg-${groupConfig.color}-50 border-2 border-${groupConfig.color}-300 rounded-xl p-6`}>
+              <div className="flex items-center space-x-3 mb-6">
+                <div className={`w-6 h-6 rounded-full bg-${groupConfig.color}-600 flex items-center justify-center`}>
+                  <groupConfig.icon className="w-4 h-4 text-white" />
+                </div>
+                <h3 className={`text-xl font-bold text-${groupConfig.color}-800`}>
+                  {groupConfig.title} (en período filtrado)
+                </h3>
+                <div className={`px-3 py-1 rounded-full text-sm font-bold bg-${groupConfig.color}-600 text-white`}>
+                  {vehicleGroup.length}
+                </div>
+              </div>
+              
+              {vehicleGroup.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className={`text-lg text-${groupConfig.color}-800 opacity-75`}>
+                    No hay vehículos en esta categoría (en el período filtrado)
+                  </p>
+                </div>
+              ) : groupIndex < 2 ? (
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {vehicleGroup.slice(0, groupIndex === 0 ? 20 : 10).map(vehicle => (
+                    <div key={vehicle.plate} className="bg-white rounded-lg p-5 border-2 border-red-200 shadow-md">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <h4 className="font-bold text-xl text-gray-800 mb-1">{vehicle.plate}</h4>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className={`font-semibold text-${groupConfig.color}-700`}>Cumplimiento (período):</span>
+                              <div className={`text-lg font-bold text-${groupConfig.color}-600`}>{vehicle.compliance.toFixed(1)}%</div>
+                            </div>
+                            <div>
+                              <span className={`font-semibold text-${groupConfig.color}-700`}>Fallas (período):</span>
+                              <div className={`text-lg font-bold text-${groupConfig.color}-600`}>{vehicle.totalFailures}</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="text-sm text-gray-500 mb-1">Fallas Críticas:</div>
+                          <div className={`text-2xl font-bold text-${groupConfig.color}-600`}>{vehicle.criticalFailures}</div>
+                          {groupIndex === 0 && <div className="text-xs text-red-500">URGENTE</div>}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-4 text-sm text-gray-600 mb-3">
+                        <div><span className="font-semibold">Inspecciones (período):</span> {vehicle.totalInspections}</div>
+                        <div><span className="font-semibold">Inspecciones (total):</span> {vehicle.totalInspectionsGlobal}</div>
+                        <div><span className="font-semibold">Conductores:</span> {vehicle.inspectorCount}</div>
+                      </div>
+
+                      {vehicle.topFailedItems.length > 0 && (
+                        <div className="mb-3">
+                          <h5 className={`font-semibold text-${groupConfig.color}-700 text-sm mb-2`}>Items que más fallan (período):</h5>
+                          <div className="flex flex-wrap gap-1">
+                            {vehicle.topFailedItems.slice(0, groupIndex === 0 ? 3 : 4).map((item, idx) => (
+                              <span key={idx} className={`text-xs px-2 py-1 rounded ${
+                                item.isCritical 
+                                  ? 'bg-red-200 text-red-800 border border-red-300' 
+                                  : 'bg-gray-200 text-gray-700'
+                              }`}>
+                                {item.name} ({item.failureCount}x)
+                                {item.isCritical && ' ⚠️'}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                        <div className="text-sm text-gray-600">
+                          {groupIndex === 0 ? (
+                            `Última inspección global: ${vehicle.lastInspection ? 
+                              vehicle.lastInspection.toLocaleDateString('es-CO') : 
+                              'Sin registro'
+                            }`
+                          ) : (
+                            `${vehicle.totalInspections} insp. período | ${vehicle.inspectorCount} conductores`
+                          )}
+                        </div>
+                        <span className={`text-sm text-${groupConfig.color}-700 font-bold bg-${groupConfig.color}-100 px-3 py-1 rounded border border-${groupConfig.color}-300`}>
+                          {groupConfig.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${groupIndex === 2 ? '3' : '4'} gap-4 max-h-${groupIndex === 2 ? '80' : '64'} overflow-y-auto`}>
+                  {vehicleGroup.map(vehicle => (
+                    <div key={vehicle.plate} className={`bg-white rounded-lg p-${groupIndex === 2 ? '4' : '3'} border border-${groupConfig.color}-200`}>
+                      {groupIndex === 3 ? (
+                        <div className="text-center">
+                          <h4 className="font-bold text-gray-800 mb-1">{vehicle.plate}</h4>
+                          <div className="text-lg font-bold text-green-600">{vehicle.compliance.toFixed(1)}%</div>
+                          <div className="text-xs text-green-700">
+                            {vehicle.criticalFailures === 0 ? 'Sin fallas críticas (período)' : `${vehicle.criticalFailures} fallas críticas (período)`}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {vehicle.totalInspections} inspecciones en período
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="font-bold text-gray-800">{vehicle.plate}</h4>
+                            <span className={`text-sm bg-${groupConfig.color}-100 text-${groupConfig.color}-800 px-2 py-1 rounded`}>
+                              {vehicle.compliance.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            <p>Fallas: {vehicle.totalFailures} | Críticas: {vehicle.criticalFailures}</p>
+                            <p>{vehicle.totalInspections} insp. período | {vehicle.totalInspectionsGlobal} total</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Header del sistema
   const SystemHeader = () => (
     <div className="bg-white shadow-sm border-b px-6 py-4">
       <div className="flex items-center justify-between">
@@ -1707,23 +2054,23 @@ const InspectorVehicularSystem = () => {
     </div>
   );
 
+  // Verificación de sesión
   useEffect(() => {
-    const sessionData = localStorage.getItem('inspector_session');
+    const sessionData = '';
     if (sessionData) {
       try {
-        const session = JSON.parse(sessionData);
+        const session = JSON.parse(atob(sessionData));
         if (session.authenticated && Date.now() < session.expires) {
           setIsAuthenticated(true);
           setSessionTimeout(session.expires);
-        } else {
-          localStorage.removeItem('inspector_session');
         }
       } catch (error) {
-        localStorage.removeItem('inspector_session');
+        console.log('Session invalid');
       }
     }
   }, []);
 
+  // Timeout de sesión
   useEffect(() => {
     if (sessionTimeout) {
       const timeLeft = sessionTimeout - Date.now();
@@ -1732,7 +2079,6 @@ const InspectorVehicularSystem = () => {
           setIsAuthenticated(false);
           setProcessedData(null);
           setSystemStats(null);
-          localStorage.removeItem('inspector_session');
           alert('Su sesión ha expirado. Por favor, inicie sesión nuevamente.');
         }, timeLeft);
         
@@ -1741,6 +2087,7 @@ const InspectorVehicularSystem = () => {
     }
   }, [sessionTimeout]);
 
+  // Render principal
   if (!isAuthenticated) {
     return <LoginForm />;
   }
@@ -1817,7 +2164,7 @@ const InspectorVehicularSystem = () => {
               
               {activeTab === 'dashboard' && <Dashboard />}
               {activeTab === 'conductores' && <ConductorAnalysisNuevo />}
-              {activeTab === 'vehicles' && <VehicleAnalysisNuevo />}
+              {activeTab === 'vehicles' && <VehicleAnalysis />}
               
               {!['dashboard', 'conductores', 'vehicles'].includes(activeTab) && (
                 <div className="bg-white rounded-xl p-8 shadow-sm border text-center">
@@ -1829,6 +2176,15 @@ const InspectorVehicularSystem = () => {
                   <p className="text-gray-500 mb-4">
                     Sección en desarrollo
                   </p>
+                  <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+                    <p className="font-semibold mb-2">Datos procesados:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <p>• {systemStats.uniqueCounts.inspectors} conductores únicos</p>
+                      <p>• {systemStats.uniqueCounts.vehicles} vehículos únicos</p>
+                      <p>• {systemStats.uniqueCounts.locations} ubicaciones</p>
+                      <p>• {systemStats.uniqueCounts.inspectionItems} items de inspección</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
