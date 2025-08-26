@@ -48,6 +48,8 @@ const InspectorVehicularSystem = () => {
     criticalItemsOnly: false
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedItemDetail, setSelectedItemDetail] = useState(null);
+  const [showItemModal, setShowItemModal] = useState(false);
   
   // Colores del sistema
   const colors = {
@@ -169,6 +171,288 @@ const InspectorVehicularSystem = () => {
     
     return filtered;
   }, [processedData, filters]);
+
+  // Componente Modal para detalles de items problemáticos
+  const ItemDetailModal = () => {
+    if (!selectedItemDetail || !showItemModal || !processedData) return null;
+
+    // Filtrar inspecciones que tuvieron falla en este item específico
+    const itemFailures = processedData.inspections.filter(insp => {
+      const itemData = insp.items[selectedItemDetail.name];
+      return itemData && !itemData.compliant;
+    });
+
+    // Analizar vehículos afectados
+    const affectedVehicles = {};
+    const affectedConductors = {};
+    const timelineData = [];
+
+    itemFailures.forEach(insp => {
+      // Análisis por vehículo
+      if (!affectedVehicles[insp.vehicle]) {
+        affectedVehicles[insp.vehicle] = {
+          plate: insp.vehicle,
+          failureCount: 0,
+          lastFailure: null,
+          conductors: new Set(),
+          locations: new Set()
+        };
+      }
+      affectedVehicles[insp.vehicle].failureCount++;
+      affectedVehicles[insp.vehicle].conductors.add(insp.inspector);
+      affectedVehicles[insp.vehicle].locations.add(insp.location);
+      if (insp.timestamp) {
+        const date = new Date(insp.timestamp);
+        if (!affectedVehicles[insp.vehicle].lastFailure || date > affectedVehicles[insp.vehicle].lastFailure) {
+          affectedVehicles[insp.vehicle].lastFailure = date;
+        }
+      }
+
+      // Análisis por conductor
+      if (!affectedConductors[insp.inspector]) {
+        affectedConductors[insp.inspector] = {
+          name: insp.inspector,
+          failureCount: 0,
+          vehicles: new Set(),
+          locations: new Set()
+        };
+      }
+      affectedConductors[insp.inspector].failureCount++;
+      affectedConductors[insp.inspector].vehicles.add(insp.vehicle);
+      affectedConductors[insp.inspector].locations.add(insp.location);
+
+      // Timeline data
+      if (insp.timestamp) {
+        timelineData.push({
+          date: insp.timestamp,
+          vehicle: insp.vehicle,
+          conductor: insp.inspector,
+          location: insp.location
+        });
+      }
+    });
+
+    const vehicleList = Object.values(affectedVehicles).sort((a, b) => b.failureCount - a.failureCount);
+    const conductorList = Object.values(affectedConductors).sort((a, b) => b.failureCount - a.failureCount);
+    const sortedTimeline = timelineData.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 20);
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                {selectedItemDetail.isCritical && (
+                  <AlertTriangle className="w-6 h-6 text-red-500 mr-2" />
+                )}
+                Detalle: {selectedItemDetail.name}
+              </h2>
+              <p className="text-gray-600 mt-1">
+                {selectedItemDetail.nonCompliant} fallas de {selectedItemDetail.total} inspecciones 
+                ({selectedItemDetail.failureRate.toFixed(1)}% tasa de falla)
+              </p>
+            </div>
+            <button
+              onClick={() => setShowItemModal(false)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Estadísticas generales */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h3 className="font-semibold text-red-800 mb-3">Resumen de Fallas</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-red-700 font-medium">Total de Fallas:</span>
+                    <div className="text-2xl font-bold text-red-800">{itemFailures.length}</div>
+                  </div>
+                  <div>
+                    <span className="text-red-700 font-medium">Vehículos Afectados:</span>
+                    <div className="text-2xl font-bold text-red-800">{vehicleList.length}</div>
+                  </div>
+                  <div>
+                    <span className="text-red-700 font-medium">Conductores Involucrados:</span>
+                    <div className="text-2xl font-bold text-red-800">{conductorList.length}</div>
+                  </div>
+                  <div>
+                    <span className="text-red-700 font-medium">Tipo de Item:</span>
+                    <div className="text-lg font-bold text-red-800">
+                      {selectedItemDetail.isCritical ? 'CRÍTICO' : 'Estándar'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Impacto operacional */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-800 mb-3">Impacto Operacional</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-blue-700">Ubicaciones Afectadas:</span>
+                    <span className="font-semibold text-blue-800">
+                      {[...new Set(itemFailures.map(f => f.location))].length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-700">Tasa de Falla:</span>
+                    <span className="font-semibold text-blue-800">
+                      {selectedItemDetail.failureRate.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-700">Frecuencia:</span>
+                    <span className="font-semibold text-blue-800">
+                      {itemFailures.length > 100 ? 'Muy Alta' : 
+                       itemFailures.length > 50 ? 'Alta' : 
+                       itemFailures.length > 20 ? 'Media' : 'Baja'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Vehículos más afectados */}
+              <div className="bg-white border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                  <Car className="w-5 h-5 mr-2 text-red-500" />
+                  Todos los Vehículos Afectados ({vehicleList.length})
+                </h3>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {vehicleList.map((vehicle, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-800">{vehicle.plate}</div>
+                        <div className="text-xs text-gray-600">
+                          {vehicle.conductors.size} conductores • {vehicle.locations.size} ubicaciones
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Última falla: {vehicle.lastFailure ? 
+                            vehicle.lastFailure.toLocaleDateString('es-CO') : 'N/A'}
+                        </div>
+                        <div className="text-xs text-blue-600 mt-1">
+                          Conductores: {Array.from(vehicle.conductors).slice(0, 3).join(', ')}
+                          {vehicle.conductors.size > 3 && ` (+${vehicle.conductors.size - 3} más)`}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-red-600">{vehicle.failureCount}</div>
+                        <div className="text-xs text-red-500">fallas</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {vehicleList.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <Car className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No hay vehículos con fallas en este item</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Conductores más involucrados */}
+              <div className="bg-white border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                  <User className="w-5 h-5 mr-2 text-orange-500" />
+                  Todos los Conductores Involucrados ({conductorList.length})
+                </h3>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {conductorList.map((conductor, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-800">{conductor.name}</div>
+                        <div className="text-xs text-gray-600">
+                          {conductor.vehicles.size} vehículos • {conductor.locations.size} ubicaciones
+                        </div>
+                        <div className="text-xs text-green-600 mt-1">
+                          Vehículos: {Array.from(conductor.vehicles).slice(0, 3).join(', ')}
+                          {conductor.vehicles.size > 3 && ` (+${conductor.vehicles.size - 3} más)`}
+                        </div>
+                        <div className="text-xs text-purple-600">
+                          Ubicaciones: {Array.from(conductor.locations).slice(0, 2).join(', ')}
+                          {conductor.locations.size > 2 && ` (+${conductor.locations.size - 2} más)`}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-orange-600">{conductor.failureCount}</div>
+                        <div className="text-xs text-orange-500">fallas</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {conductorList.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No hay conductores involucrados en este item</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Timeline reciente */}
+            <div className="mt-6 bg-white border rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <Clock className="w-5 h-5 mr-2 text-blue-500" />
+                Fallas Recientes (Últimas 20)
+              </h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {sortedTimeline.map((event, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
+                    <div className="flex items-center space-x-4 flex-1">
+                      <div className="text-sm font-medium text-gray-800">
+                        {new Date(event.date).toLocaleDateString('es-CO')}
+                      </div>
+                      <div className="text-sm text-blue-600">{event.vehicle}</div>
+                      <div className="text-sm text-gray-600">{event.conductor}</div>
+                    </div>
+                    <div className="text-xs text-gray-500">{event.location}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Acciones recomendadas */}
+            <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-3 flex items-center">
+                <Target className="w-5 h-5 mr-2" />
+                Acciones Recomendadas
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <h4 className="font-semibold text-yellow-700 mb-2">Mantenimiento Preventivo:</h4>
+                  <ul className="list-disc list-inside space-y-1 text-yellow-800">
+                    {vehicleList.slice(0, 3).map(v => (
+                      <li key={v.plate}>Revisar {selectedItemDetail.name} en {v.plate}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-yellow-700 mb-2">Capacitación:</h4>
+                  <ul className="list-disc list-inside space-y-1 text-yellow-800">
+                    {conductorList.slice(0, 3).map(c => (
+                      <li key={c.name}>Capacitar a {c.name} en verificación de {selectedItemDetail.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Función para abrir modal de detalle
+  const openItemDetail = (item) => {
+    setSelectedItemDetail(item);
+    setShowItemModal(true);
+  };
 
   // Función auxiliar para obtener nombre del mes
   const getMonthName = (month) => {
@@ -805,6 +1089,20 @@ const InspectorVehicularSystem = () => {
           </div>
           
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Contrato</label>
+            <select
+              value={filters.contract}
+              onChange={(e) => handleInputChange('contract', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Todos los contratos</option>
+              {processedData.uniqueValues.contracts.map(contract => (
+                <option key={contract} value={contract}>{contract}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nivel de Riesgo</label>
             <select
               value={filters.riskLevel}
@@ -1006,8 +1304,50 @@ const InspectorVehicularSystem = () => {
       }
     }
 
+    // Análisis de items basado en datos filtrados
+    const filteredItemAnalysis = {};
+    
+    if (processedData && processedData.columns && filteredData.length > 0) {
+      processedData.columns.inspectionItems.forEach(item => {
+        const itemValues = filteredData.map(insp => insp.items[item.cleanName]).filter(Boolean);
+        const compliant = itemValues.filter(i => i.compliant).length;
+        const total = itemValues.length;
+        
+        if (total >= 5) { // Reducimos el mínimo para filtros más específicos
+          filteredItemAnalysis[item.cleanName] = {
+            name: item.cleanName,
+            isCritical: item.isCritical,
+            total: total,
+            compliant: compliant,
+            nonCompliant: total - compliant,
+            complianceRate: (compliant / total) * 100,
+            failureRate: ((total - compliant) / total) * 100
+          };
+        }
+      });
+    }
+
     return (
       <div className="space-y-6">
+        {/* Indicador de filtros activos */}
+        {(filters.search || filters.inspector || filters.vehicle || filters.location || filters.contract || 
+          filters.shift || filters.year || filters.month || filters.day || filters.dateStart || filters.dateEnd || 
+          filters.riskLevel || filters.criticalItemsOnly) && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Filter className="w-5 h-5 text-yellow-600" />
+              <h3 className="font-semibold text-yellow-800">Filtros Activos - Dashboard Filtrado</h3>
+            </div>
+            <div className="text-sm text-yellow-700">
+              <span className="font-semibold">Mostrando:</span> {filteredData.length} de {processedData.inspections.length} inspecciones
+              {filters.dateStart && <span className="ml-4"><strong>Desde:</strong> {filters.dateStart}</span>}
+              {filters.dateEnd && <span className="ml-4"><strong>Hasta:</strong> {filters.dateEnd}</span>}
+              {filters.inspector && <span className="ml-4"><strong>Conductor:</strong> {filters.inspector}</span>}
+              {filters.contract && <span className="ml-4"><strong>Contrato:</strong> {filters.contract}</span>}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white rounded-xl p-6 shadow-sm border">
             <div className="flex items-center justify-between">
@@ -1068,10 +1408,10 @@ const InspectorVehicularSystem = () => {
               <div>
                 <p className="text-sm text-gray-500">Conductores/Inspectores</p>
                 <p className="text-2xl font-bold text-purple-600">
-                  {systemStats.uniqueCounts.inspectors}
+                  {[...new Set(filteredData.map(i => i.inspector))].length}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {systemStats.uniqueCounts.vehicles} vehículos
+                  {[...new Set(filteredData.map(i => i.vehicle))].length} vehículos (filtrados)
                 </p>
               </div>
               <div className="bg-purple-100 rounded-lg p-3">
@@ -1085,6 +1425,9 @@ const InspectorVehicularSystem = () => {
           <div className="bg-white rounded-xl p-6 shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
               Distribución de Niveles de Riesgo
+              {filteredData.length !== systemStats.totalInspections && (
+                <span className="text-sm font-normal text-blue-600 ml-2">(Filtrado)</span>
+              )}
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <RechartsPieChart>
@@ -1114,6 +1457,9 @@ const InspectorVehicularSystem = () => {
           <div className="bg-white rounded-xl p-6 shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
               Distribución de Cumplimiento
+              {filteredData.length !== systemStats.totalInspections && (
+                <span className="text-sm font-normal text-blue-600 ml-2">(Filtrado)</span>
+              )}
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={complianceDistribution}>
@@ -1135,32 +1481,75 @@ const InspectorVehicularSystem = () => {
         <div className="bg-white rounded-xl p-6 shadow-sm border">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">
             Items Más Problemáticos
+            {filteredData.length !== systemStats.totalInspections && (
+              <span className="text-sm font-normal text-blue-600 ml-2">(Datos Filtrados)</span>
+            )}
           </h3>
           <div className="space-y-3 max-h-80 overflow-y-auto">
-            {Object.values(processedData.itemAnalysis)
+            {Object.values(filteredItemAnalysis)
               .sort((a, b) => b.failureRate - a.failureRate)
-              .slice(0, 10)
+              .slice(0, 15)
               .map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-2 flex-1">
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors">
+                  <div className="flex items-center space-x-3 flex-1">
                     {item.isCritical && (
                       <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                     )}
-                    <span className="text-sm text-gray-700 truncate">
-                      {item.name}
-                    </span>
+                    <div className="flex-1">
+                      <span className="text-sm text-gray-700 font-medium block">
+                        {item.name}
+                      </span>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span className="text-xs text-gray-500">
+                          {item.nonCompliant}/{item.total} fallas
+                        </span>
+                        {item.isCritical && (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">
+                            CRÍTICO
+                          </span>
+                        )}
+                        {filteredData.length !== systemStats.totalInspections && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                            FILTRADO
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-red-600">
-                      {item.failureRate.toFixed(1)}%
+                  <div className="flex items-center space-x-3">
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-red-600">
+                        {item.failureRate.toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        tasa de falla
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {item.nonCompliant}/{item.total}
-                    </div>
+                    <button
+                      onClick={() => openItemDetail(item)}
+                      className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                      title="Ver detalles completos"
+                    >
+                      <Eye className="w-3 h-3 mr-1" />
+                      Detalles
+                    </button>
                   </div>
                 </div>
               ))}
           </div>
+          
+          {Object.keys(filteredItemAnalysis).length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <AlertTriangle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No hay suficientes datos para análisis de items</p>
+              <p className="text-sm mt-1">
+                {filteredData.length === 0 ? 
+                  'No hay inspecciones que coincidan con los filtros aplicados' :
+                  'Se requieren al menos 5 inspecciones por item en los datos filtrados'
+                }
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -2337,6 +2726,9 @@ const InspectorVehicularSystem = () => {
           )}
         </div>
       </div>
+
+      {/* Modal de detalle de items */}
+      <ItemDetailModal />
     </div>
   );
 };
