@@ -1,16 +1,45 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
-  Upload, LogOut, Search, Filter, Download, Eye, EyeOff, 
-  BarChart3, PieChart, TrendingUp, Users, Car, AlertTriangle,
-  Calendar, MapPin, Clock, Building, ChevronDown, X, FileText,
-  Shield, CheckCircle, XCircle, AlertCircle, Target, Loader2,
-  ArrowUpDown, TrendingDown, Award, Zap, Settings, RefreshCw,
-  User, Activity, Flag, Gauge
+  Upload, Search, Filter, Eye, EyeOff, Car, AlertTriangle,
+  Clock, X, FileText, Shield, CheckCircle, XCircle, Target,
+  User, Activity, AlertOctagon, ArrowUpDown, AlertCircle,
+  Download, LogOut, BarChart3, TrendingUp, Loader2
 } from 'lucide-react';
+
+// Funciones de normalización
+const normalizeText = (text) => {
+  if (!text) return '';
+  return text.toString()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ');
+};
+
+const normalizeName = (name) => {
+  if (!name) return 'Sin especificar';
+  const normalized = normalizeText(name);
+  // Remover palabras comunes que no aportan
+  const commonWords = ['EL', 'LA', 'LOS', 'LAS', 'DE', 'DEL', 'SR', 'SRA', 'SEÑOR', 'SEÑORA'];
+  return normalized
+    .split(' ')
+    .filter(word => !commonWords.includes(word))
+    .join(' ')
+    .trim() || 'Sin especificar';
+};
+
+const normalizePlate = (plate) => {
+  if (!plate) return 'Sin especificar';
+  return normalizeText(plate)
+    .replace(/[^A-Z0-9]/g, '')
+    .replace(/^([A-Z]{3})(\d{3})$/, '$1-$2')
+    .trim() || 'Sin especificar';
+};
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart as RechartsPieChart, Pie, Cell, LineChart, Line, ScatterChart, Scatter,
-  AreaChart, Area, ComposedChart
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart as RechartsPieChart, Pie, Cell, RadialBarChart as Gauge
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -22,7 +51,8 @@ const InspectorVehicularSystem = () => {
   const [sessionTimeout, setSessionTimeout] = useState(null);
   
   // Estados de datos
-  const [rawData, setRawData] = useState(null);
+  // eslint-disable-next-line no-unused-vars
+const [rawData, setRawData] = useState(null);
   const [processedData, setProcessedData] = useState(null);
   const [systemStats, setSystemStats] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -248,8 +278,15 @@ const InspectorVehicularSystem = () => {
                 Detalle: {selectedItemDetail.name}
               </h2>
               <p className="text-gray-600 mt-1">
-                {selectedItemDetail.nonCompliant} fallas de {selectedItemDetail.total} inspecciones 
-                ({selectedItemDetail.failureRate.toFixed(1)}% tasa de falla)
+                {selectedItemDetail.nonCompliant.toLocaleString()} fallas en {selectedItemDetail.total.toLocaleString()} inspecciones 
+                ({selectedItemDetail.failureRate.toFixed(1)}% tasa de falla) • Última falla: {
+                  selectedItemDetail.lastFailure ? 
+                    selectedItemDetail.lastFailure.toLocaleDateString('es-CO', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    }) : 'N/A'
+                }
               </p>
             </div>
             <button
@@ -264,24 +301,45 @@ const InspectorVehicularSystem = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* Estadísticas generales */}
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <h3 className="font-semibold text-red-800 mb-3">Resumen de Fallas</h3>
+                <h3 className="font-semibold text-red-800 mb-3 flex items-center">
+                  <AlertOctagon className="w-5 h-5 mr-2" />
+                  Resumen de Fallas
+                </h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-red-700 font-medium">Total de Fallas:</span>
-                    <div className="text-2xl font-bold text-red-800">{itemFailures.length}</div>
+                    <div className="text-2xl font-bold text-red-800">
+                      {(selectedItemDetail?.nonCompliant || 0).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-red-600 mt-1">
+                      {((selectedItemDetail?.nonCompliant || 0) / (selectedItemDetail?.total || 1) * 100).toFixed(1)}% del total de inspecciones
+                    </div>
                   </div>
                   <div>
                     <span className="text-red-700 font-medium">Vehículos Afectados:</span>
-                    <div className="text-2xl font-bold text-red-800">{vehicleList.length}</div>
+                    <div className="text-2xl font-bold text-red-800">
+                      {selectedItemDetail.affectedVehicleCount.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-red-600 mt-1">
+                      {(selectedItemDetail.affectedVehicleCount / selectedItemDetail.total * 100).toFixed(1)}% del total de vehículos
+                    </div>
                   </div>
                   <div>
                     <span className="text-red-700 font-medium">Conductores Involucrados:</span>
-                    <div className="text-2xl font-bold text-red-800">{conductorList.length}</div>
+                    <div className="text-2xl font-bold text-red-800">
+                      {conductorList.length.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-red-600 mt-1">
+                      {(conductorList.length / selectedItemDetail.total * 100).toFixed(1)}% del total de conductores
+                    </div>
                   </div>
                   <div>
-                    <span className="text-red-700 font-medium">Tipo de Item:</span>
+                    <span className="text-red-700 font-medium">Nivel de Riesgo:</span>
                     <div className="text-lg font-bold text-red-800">
                       {selectedItemDetail.isCritical ? 'CRÍTICO' : 'Estándar'}
+                    </div>
+                    <div className="text-xs text-red-600 mt-1">
+                      {selectedItemDetail.isCritical ? 'Requiere atención inmediata' : 'Monitoreo regular'}
                     </div>
                   </div>
                 </div>
@@ -289,27 +347,59 @@ const InspectorVehicularSystem = () => {
 
               {/* Impacto operacional */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-semibold text-blue-800 mb-3">Impacto Operacional</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-blue-700">Ubicaciones Afectadas:</span>
-                    <span className="font-semibold text-blue-800">
-                      {[...new Set(itemFailures.map(f => f.location))].length}
-                    </span>
+                <h3 className="font-semibold text-blue-800 mb-3 flex items-center">
+                  <Activity className="w-5 h-5 mr-2" />
+                  Impacto Operacional
+                </h3>
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-blue-700">Ubicaciones Afectadas:</span>
+                      <span className="font-semibold text-blue-800">
+                        {[...new Set(itemFailures.map(f => f.location))].length.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-600">
+                      Principales: {[...new Set(itemFailures.map(f => f.location))].slice(0, 3).join(', ')}
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-blue-700">Tasa de Falla:</span>
-                    <span className="font-semibold text-blue-800">
-                      {selectedItemDetail.failureRate.toFixed(1)}%
-                    </span>
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-blue-700">Tasa de Falla:</span>
+                      <span className="font-semibold text-blue-800">
+                        {selectedItemDetail.failureRate.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-600">
+                      {selectedItemDetail.nonCompliant.toLocaleString()} fallas en {selectedItemDetail.total.toLocaleString()} inspecciones
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-blue-700">Frecuencia:</span>
-                    <span className="font-semibold text-blue-800">
-                      {itemFailures.length > 100 ? 'Muy Alta' : 
-                       itemFailures.length > 50 ? 'Alta' : 
-                       itemFailures.length > 20 ? 'Media' : 'Baja'}
-                    </span>
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-blue-700">Nivel de Frecuencia:</span>
+                      <span className="font-semibold text-blue-800">
+                        {itemFailures.length > 100 ? 'Muy Alta' : 
+                         itemFailures.length > 50 ? 'Alta' : 
+                         itemFailures.length > 20 ? 'Media' : 'Baja'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-600">
+                      Promedio: {(itemFailures.length / 30).toFixed(1)} fallas por día
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-blue-700">Última Actualización:</span>
+                      <span className="font-semibold text-blue-800">
+                        {selectedItemDetail.lastFailure ? 
+                          selectedItemDetail.lastFailure.toLocaleDateString('es-CO', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          }) : 'N/A'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -680,6 +770,8 @@ const InspectorVehicularSystem = () => {
       const processedInspections = [];
       
       dataRows.forEach((row, index) => {
+        const inspectionTimestamp = row[detectedColumns.timestamp];
+        const inspDate = new Date(inspectionTimestamp);
         let inspectorName = 'Sin especificar';
         if (detectedColumns.inspector !== null) {
           const inspectorValue = row[detectedColumns.inspector];
@@ -687,23 +779,18 @@ const InspectorVehicularSystem = () => {
               inspectorValue.toString().trim() !== '' &&
               inspectorValue.toString().toLowerCase() !== 'cumple' &&
               inspectorValue.toString().toLowerCase() !== 'no cumple') {
-            inspectorName = inspectorValue.toString().trim();
+            inspectorName = normalizeName(inspectorValue);
           }
         }
-        
-        let timestamp = null;
-        if (detectedColumns.timestamp !== null) {
-          const timestampValue = row[detectedColumns.timestamp];
-          if (timestampValue) {
-            timestamp = timestampValue;
-          }
-        }
-        
         const inspection = {
           id: index + 1,
-          timestamp: timestamp,
+          timestamp: inspectionTimestamp,
+          date: inspDate,
+          year: inspDate.getFullYear().toString(),
+          month: (inspDate.getMonth() + 1).toString().padStart(2, '0'),
+          day: inspDate.getDate().toString().padStart(2, '0'),
           inspector: inspectorName,
-          vehicle: row[detectedColumns.vehicle] ? row[detectedColumns.vehicle].toString().trim().toUpperCase() : 'Sin especificar',
+          vehicle: row[detectedColumns.vehicle] ? normalizePlate(row[detectedColumns.vehicle]) : 'Sin especificar',
           contract: row[detectedColumns.contract] ? row[detectedColumns.contract].toString().trim() : 'Sin especificar',
           location: row[detectedColumns.location] ? row[detectedColumns.location].toString().trim().toUpperCase() : 'Sin especificar',
           mileage: parseInt(row[detectedColumns.mileage]) || 0,
@@ -714,7 +801,10 @@ const InspectorVehicularSystem = () => {
           criticalFailures: 0,
           totalItems: 0,
           compliantItems: 0,
-          riskLevel: 'Bajo'
+          riskLevel: 'Bajo',
+          hasCriticalItems: false,
+          status: 'active',
+          lastInspection: inspectionTimestamp
         };
 
         let totalItems = 0;
@@ -765,6 +855,7 @@ const InspectorVehicularSystem = () => {
         inspection.totalItems = totalItems;
         inspection.compliantItems = compliantItems;
         inspection.criticalFailures = criticalFailures;
+        inspection.hasCriticalItems = criticalFailures > 0;
         
         if (totalItems > 0) {
           inspection.compliance = (compliantItems / totalItems) * 100;
@@ -773,6 +864,9 @@ const InspectorVehicularSystem = () => {
           else if (inspection.compliance >= 95) inspection.riskLevel = 'Medio';
           else if (inspection.compliance >= 90) inspection.riskLevel = 'Alto';
           else inspection.riskLevel = 'Crítico';
+          
+          // Update status based on riskLevel and critical items
+          inspection.status = (inspection.riskLevel === 'Crítico' || inspection.hasCriticalItems) ? 'inactive' : 'active';
         }
 
         processedInspections.push(inspection);
@@ -797,9 +891,11 @@ const InspectorVehicularSystem = () => {
         contracts: [...new Set(validInspections.map(i => i.contract))].filter(c => c !== 'Sin especificar').sort(),
         shifts: [...new Set(validInspections.map(i => i.shift))].filter(s => s !== 'Sin especificar').sort(),
         inspectionItems: detectedColumns.inspectionItems.map(i => i.cleanName),
-        years: [...new Set(validInspections.map(i => i.timestamp ? new Date(i.timestamp).getFullYear() : null))].filter(y => y).sort(),
-        months: [...new Set(validInspections.map(i => i.timestamp ? new Date(i.timestamp).getMonth() + 1 : null))].filter(m => m).sort(),
-        days: [...new Set(validInspections.map(i => i.timestamp ? new Date(i.timestamp).getDate() : null))].filter(d => d).sort((a, b) => a - b)
+        years: [...new Set(validInspections.map(i => i.year))].filter(y => y).sort(),
+        months: [...new Set(validInspections.map(i => i.month))].filter(m => m).sort(),
+        days: [...new Set(validInspections.map(i => i.day))].filter(d => d).sort((a, b) => a - b),
+        status: ['active', 'inactive'],
+        riskLevels: ['Bajo', 'Medio', 'Alto', 'Crítico']
       };
 
       const totalCompliance = validInspections.reduce((sum, i) => sum + i.compliance, 0);
@@ -985,7 +1081,16 @@ const InspectorVehicularSystem = () => {
     const [searchText, setSearchText] = useState(filters.search);
     
     const handleInputChange = useCallback((field, value) => {
-      setFilters(prev => ({ ...prev, [field]: value }));
+      setFilters(prev => {
+        const newFilters = { ...prev, [field]: value };
+        // If changing dateRange.start or dateRange.end, update both fields
+        if (field === 'dateStart' && value) {
+          newFilters.dateRange = { ...prev.dateRange, start: value };
+        } else if (field === 'dateEnd' && value) {
+          newFilters.dateRange = { ...prev.dateRange, end: value };
+        }
+        return newFilters;
+      });
     }, []);
 
     const handleSearch = () => {
@@ -1103,6 +1208,22 @@ const InspectorVehicularSystem = () => {
           </div>
           
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+            <select
+              value={filters.status}
+              onChange={(e) => handleInputChange('status', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Todos los estados</option>
+              {processedData.uniqueValues.status.map(status => (
+                <option key={status} value={status}>
+                  {status === 'active' ? 'Activo' : 'Inactivo'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nivel de Riesgo</label>
             <select
               value={filters.riskLevel}
@@ -1110,10 +1231,9 @@ const InspectorVehicularSystem = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Todos los niveles</option>
-              <option value="Bajo">Bajo</option>
-              <option value="Medio">Medio</option>
-              <option value="Alto">Alto</option>
-              <option value="Crítico">Crítico</option>
+              {processedData.uniqueValues.riskLevels.map(level => (
+                <option key={level} value={level}>{level}</option>
+              ))}
             </select>
           </div>
           
@@ -1215,15 +1335,44 @@ const InspectorVehicularSystem = () => {
         
         <div className="flex items-center justify-between mt-4 pt-4 border-t">
           <div className="flex items-center space-x-4">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={filters.criticalItemsOnly}
-                onChange={(e) => handleInputChange('criticalItemsOnly', e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="ml-2 text-sm text-gray-700">Solo fallas críticas</span>
-            </label>
+            <div className="flex space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={filters.criticalItemsOnly}
+                  onChange={(e) => handleInputChange('criticalItemsOnly', e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="ml-2 text-sm text-gray-700">Solo fallas críticas</span>
+              </label>
+
+              <div className="flex items-center space-x-2">
+                <select
+                  value={filters.sortBy}
+                  onChange={(e) => handleInputChange('sortBy', e.target.value)}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Ordenar por</option>
+                  <option value="date">Fecha</option>
+                  <option value="compliance">Cumplimiento</option>
+                  <option value="riskLevel">Nivel de Riesgo</option>
+                  <option value="criticalFailures">Fallas Críticas</option>
+                  <option value="inspector">Inspector</option>
+                  <option value="vehicle">Vehículo</option>
+                  <option value="location">Ubicación</option>
+                </select>
+
+                {filters.sortBy && (
+                  <button
+                    onClick={() => handleInputChange('sortOrder', filters.sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="flex items-center px-2 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                    title={filters.sortOrder === 'asc' ? 'Ascendente' : 'Descendente'}
+                  >
+                    <ArrowUpDown className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
           
           <div className="flex space-x-2">
@@ -1242,10 +1391,15 @@ const InspectorVehicularSystem = () => {
                   day: '',
                   complianceMin: 0,
                   complianceMax: 100,
-                  dateStart: '',
-                  dateEnd: '',
+                  dateRange: {
+                    start: '',
+                    end: ''
+                  },
                   riskLevel: '',
-                  criticalItemsOnly: false
+                  criticalItemsOnly: false,
+                  status: '',
+                  sortBy: '',
+                  sortOrder: 'asc'
                 });
               }}
               className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
@@ -2490,12 +2644,40 @@ const InspectorVehicularSystem = () => {
                       <div className="text-xs text-red-600">fallas en período</div>
                     </div>
                   </div>
-                  <div className="text-sm text-red-800">
-                    <p><span className="font-semibold">Vehículos afectados:</span> {item.affectedVehicleCount}</p>
-                    <p className="text-xs text-red-600 mt-1">
-                      {item.affectedVehicles.slice(0, 3).join(', ')}
-                      {item.affectedVehicles.length > 3 && ` (+${item.affectedVehicles.length - 3} más)`}
-                    </p>
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="text-sm text-red-800">
+                      <p><span className="font-semibold">Vehículos afectados:</span> {item.affectedVehicleCount}</p>
+                      <p className="text-xs text-red-600 mt-1">
+                        {item.affectedVehicles.slice(0, 3).join(', ')}
+                        {item.affectedVehicles.length > 3 && ` (+${item.affectedVehicles.length - 3} más)`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        // Filtrar inspecciones para este item específico
+                        const itemInspections = processedData.inspections.filter(insp => {
+                          const itemData = insp.items[item.name];
+                          return itemData && !itemData.compliant;
+                        });
+
+                        openItemDetail({
+                          name: item.name,
+                          isCritical: item.isCritical,
+                          total: item.total,
+                          nonCompliant: item.nonCompliant,
+                          failureRate: (item.nonCompliant / item.total) * 100,
+                          inspections: itemInspections,
+                          affectedVehicles: item.affectedVehicles,
+                          affectedVehicleCount: item.affectedVehicleCount,
+                          lastFailure: itemInspections.length > 0 ? 
+                            new Date(Math.max(...itemInspections.map(i => new Date(i.timestamp)))) : null
+                        });
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm rounded transition-colors"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Ver Detalles
+                    </button>
                   </div>
                 </div>
               ))}
