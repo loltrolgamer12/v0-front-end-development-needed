@@ -99,6 +99,54 @@ def _analyze_seasonal_patterns(df: pd.DataFrame) -> Dict:
     
     return seasonal
 
+def identify_common_issues(df: pd.DataFrame) -> List[str]:
+    """
+    Identifica los problemas más comunes en los datos
+    
+    Args:
+        df: DataFrame con datos de inspección
+        
+    Returns:
+        Lista de problemas identificados
+    """
+    issues = []
+    
+    # Verificar fatiga
+    if 'FATIGA' in df.columns:
+        fatigue_rate = (df['FATIGA'] == 'SI').mean()
+        if fatigue_rate > 0.3:
+            issues.append(f"Alta tasa de fatiga detectada ({fatigue_rate:.1%})")
+            
+    # Verificar horas de sueño
+    if 'HORAS_SUENO' in df.columns:
+        sleep_issues = (df['HORAS_SUENO'] < 7).mean()
+        if sleep_issues > 0.3:
+            issues.append(f"Problemas frecuentes con horas de sueño ({sleep_issues:.1%})")
+    
+    return issues
+
+def identify_high_risk_periods(df: pd.DataFrame) -> List[str]:
+    """
+    Identifica períodos de alto riesgo
+    
+    Args:
+        df: DataFrame con datos de inspección
+        
+    Returns:
+        Lista de períodos de alto riesgo identificados
+    """
+    periods = []
+    
+    if 'timestamp' in df.columns:
+        df['hora'] = pd.to_datetime(df['timestamp']).dt.hour
+        high_risk_hours = df.groupby('hora').size()
+        peak_hours = high_risk_hours[high_risk_hours > high_risk_hours.mean() + high_risk_hours.std()].index
+        
+        if len(peak_hours) > 0:
+            periods.append(f"Horas de mayor riesgo: {', '.join(map(str, peak_hours))}")
+    
+    return periods
+
 def _predict_maintenance(df: pd.DataFrame) -> List[Dict]:
     """
     Predice necesidades de mantenimiento basado en patrones históricos.

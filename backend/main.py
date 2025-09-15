@@ -2,7 +2,7 @@ import os
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from latex_report_generator import LaTeXReportGenerator
+from src.latex_report_generator import LaTeXReportGenerator
 from models.inspection_models import ProcessedData
 
 app = FastAPI()

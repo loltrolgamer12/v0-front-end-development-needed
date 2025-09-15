@@ -192,3 +192,35 @@ def _get_high_risk_locations(df: pd.DataFrame) -> List[Dict]:
                                  np.log1p(location_stats['total_inspections'])
     
     return location_stats.sort_values('risk_score', ascending=False).to_dict('records')
+
+def calculate_compliance_metrics(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Calcula métricas de cumplimiento por conductor
+    
+    Args:
+        df: DataFrame con los datos de inspección
+        
+    Returns:
+        Diccionario con métricas de cumplimiento general y por conductor
+    """
+    metrics = {
+        'total_inspections': len(df),
+        'compliance_rate': None,
+        'by_driver': {}
+    }
+    
+    # Calcular tasa de cumplimiento general
+    failures = df[df['RESULTADO'] == 'NO CUMPLE'].shape[0]
+    metrics['compliance_rate'] = ((len(df) - failures) / len(df)) * 100 if len(df) > 0 else 0
+    
+    # Calcular métricas por conductor
+    for driver in df['CONDUCTOR'].unique():
+        driver_data = df[df['CONDUCTOR'] == driver]
+        driver_failures = driver_data[driver_data['RESULTADO'] == 'NO CUMPLE'].shape[0]
+        metrics['by_driver'][driver] = {
+            'total_inspections': len(driver_data),
+            'compliance_rate': ((len(driver_data) - driver_failures) / len(driver_data)) * 100 if len(driver_data) > 0 else 0,
+            'failures': driver_failures
+        }
+    
+    return metrics
