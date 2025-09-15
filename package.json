@@ -1,14 +1,16 @@
 {
-  "name": "inspector-vehicular",
-  "version": "1.0.0",
+  "name": "analisis-exel",
+  "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "lucide-react": "^0.263.1",
-    "papaparse": "^5.4.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "axios": "^1.5.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-scripts": "5.0.1",
-    "recharts": "^2.8.0",
+    "web-vitals": "^2.1.4",
     "xlsx": "^0.18.5"
   },
   "scripts": {
@@ -35,17 +37,9 @@
       "last 1 safari version"
     ]
   },
-  "main": "index.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "devDependencies": {
-    "@types/node": "^24.3.2",
-    "@types/papaparse": "^5.3.16",
-    "@types/react": "^19.1.13",
-    "@types/react-dom": "^19.1.9",
-    "@types/xlsx": "^0.0.35",
-    "typescript": "^5.9.2"
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.13"
   }
 }

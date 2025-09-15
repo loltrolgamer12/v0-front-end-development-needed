@@ -1,0 +1,34 @@
+.progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: #2563eb;
+  transition: width 0.3s ease-in-out;
+  width: 0;
+}
+
+.progress-bar[data-progress="loading"] {
+  width: 90%;
+}
+
+.progress-bar[data-progress="processing"] {
+  width: var(--progress-width, 0%);
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s infinite;
+}
+}

@@ -1,0 +1,91 @@
+\documentclass[12pt]{article}
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{fontawesome5}
+
+% Configuración de página
+\geometry{a4paper, margin=2.5cm}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Colores corporativos
+\definecolor{sasblue}{RGB}{41, 128, 185}
+\definecolor{sasgreen}{RGB}{39, 174, 96}
+\definecolor{sasred}{RGB}{231, 76, 60}
+\definecolor{sasyellow}{RGB}{241, 196, 15}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \includegraphics[width=0.4\textwidth]{templates/sas_logo.png}\par\vspace{1cm}
+    {\huge\bfseries Informe de Inspecciones Vehiculares\par}
+    \vspace{1cm}
+    {\Large\itshape Período: %%MONTH%% %%YEAR%%\par}
+    \vspace{2cm}
+    
+    \begin{tabular}{rl}
+        \textbf{Total Inspecciones:} & %%TOTAL_INSPECTIONS%% \\
+        \textbf{Cumplimiento Promedio:} & %%AVERAGE_COMPLIANCE%%\% \\
+        \textbf{Fallas Críticas:} & %%CRITICAL_FAILURES%% \\
+    \end{tabular}
+    \vfill
+    
+    {\large \today\par}
+\end{titlepage}
+
+\section{Resumen Ejecutivo}
+
+Este informe presenta un análisis detallado de las inspecciones vehiculares realizadas durante %%MONTH%% de %%YEAR%%. Se realizaron un total de %%TOTAL_INSPECTIONS%% inspecciones, alcanzando un cumplimiento promedio de %%AVERAGE_COMPLIANCE%%\%.
+
+\section{Análisis de Tendencias}
+
+\begin{figure}[h]
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[
+            width=\textwidth,
+            height=0.4\textwidth,
+            xlabel=Día del Mes,
+            ylabel=Número de Inspecciones,
+            grid=major,
+            legend pos=north east,
+            ymajorgrids=true,
+            xmajorgrids=true
+        ]
+            \addplot[smooth,mark=*,sasblue] coordinates {%%DAILY_INSPECTIONS_DATA%%};
+            \legend{Inspecciones Diarias}
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Tendencia de Inspecciones Diarias}
+\end{figure}
+
+\section{Distribución de Riesgo}
+
+\begin{figure}[h]
+    \centering
+    \begin{tikzpicture}
+        \pie[radius=2]{%%RISK_PIE_DATA%%}
+    \end{tikzpicture}
+    \caption{Distribución de Niveles de Riesgo}
+\end{figure}
+
+%%ALERTS_SECTION%%
+
+\section{Recomendaciones}
+
+\begin{itemize}
+    %%RECOMMENDATIONS%%
+\end{itemize}
+
+\end{document}
