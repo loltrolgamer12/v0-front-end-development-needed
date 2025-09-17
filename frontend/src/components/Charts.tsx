@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './Charts.css';
 
 interface ChartData {
@@ -79,10 +79,10 @@ const Charts: React.FC<ChartsProps> = ({
     }
   };
 
-  const fetchAllCharts = async () => {
+  const fetchAllCharts = useCallback(async () => {
     const promises = chartTypes.map(chart => fetchChart(chart.id));
     await Promise.all(promises);
-  };
+  }, [chartTypes]);
 
   const refreshChart = (chartType: string) => {
     fetchChart(chartType);

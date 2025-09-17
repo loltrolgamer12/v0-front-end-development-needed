@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './FatigueControl.css';
 
 interface FatiguedDriver {
@@ -24,7 +24,7 @@ const FatigueControl: React.FC<FatigueControlProps> = ({ onDriverSelect }) => {
   const [selectedLevels, setSelectedLevels] = useState<string[]>(['alerta', 'alto', 'critico']);
   const [sortBy, setSortBy] = useState<'fatigue' | 'hours' | 'name'>('fatigue');
 
-  const fetchFatiguedDrivers = async () => {
+  const fetchFatiguedDrivers = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -53,9 +53,9 @@ const FatigueControl: React.FC<FatigueControlProps> = ({ onDriverSelect }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedLevels, sortBy]);
 
-  const sortDrivers = (drivers: FatiguedDriver[], criteria: string): FatiguedDriver[] => {
+  const sortDrivers = useCallback((drivers: FatiguedDriver[], criteria: string): FatiguedDriver[] => {
     return [...drivers].sort((a, b) => {
       switch (criteria) {
         case 'fatigue':
@@ -73,7 +73,7 @@ const FatigueControl: React.FC<FatigueControlProps> = ({ onDriverSelect }) => {
           return 0;
       }
     });
-  };
+  }, []);
 
   const handleLevelFilter = (level: string) => {
     setSelectedLevels(prev => {

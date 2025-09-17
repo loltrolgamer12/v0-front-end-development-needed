@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './VehicleFailures.css';
 
 interface VehicleWithFailures {
@@ -50,7 +50,7 @@ const VehicleFailures: React.FC<VehicleFailuresProps> = ({ onVehicleSelect }) =>
     { value: 'bajo', label: 'Bajo', icon: '✅', color: '#28a745' }
   ];
 
-  const fetchVehiclesWithFailures = async () => {
+  const fetchVehiclesWithFailures = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -83,9 +83,9 @@ const VehicleFailures: React.FC<VehicleFailuresProps> = ({ onVehicleSelect }) =>
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, sortBy]);
 
-  const sortVehicles = (vehicleList: VehicleWithFailures[], criteria: string): VehicleWithFailures[] => {
+  const sortVehicles = useCallback((vehicleList: VehicleWithFailures[], criteria: string): VehicleWithFailures[] => {
     return [...vehicleList].sort((a, b) => {
       switch (criteria) {
         case 'severity':
@@ -112,7 +112,7 @@ const VehicleFailures: React.FC<VehicleFailuresProps> = ({ onVehicleSelect }) =>
           return 0;
       }
     });
-  };
+  }, []);
 
   const handleFilterChange = (key: keyof FailureFilter, value: string) => {
     setFilters(prev => ({
