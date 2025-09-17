@@ -22,6 +22,9 @@ import json
 app = Flask(__name__)
 CORS(app)
 
+# Configuración para Vercel
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB máximo
+
 # Base de datos temporal en memoria
 DATABASE = ':memory:'
 analyzer = HQFOAnalyzer()
