@@ -34,8 +34,8 @@ def handle_file_too_large(e):
         'max_size': '4MB'
     }), 413
 
-# Base de datos temporal en memoria
-DATABASE = ':memory:'
+# Base de datos temporal (memoria para Vercel, archivo para desarrollo)
+DATABASE = ':memory:' if os.environ.get('VERCEL') else 'hqfo_temp.db'
 analyzer = HQFOAnalyzer()
 
 def init_db():
@@ -769,113 +769,6 @@ def api_status():
         ]
     })
 
-@app.route('/api/reports/generate', methods=['POST'])
-def generate_report():
-    """Generar reporte personalizado con opciones avanzadas"""
-    try:
-        data = request.get_json()
-        
-        start_date = data.get('startDate')
-        end_date = data.get('endDate')
-        report_type = data.get('reportType', 'complete')
-        format_type = data.get('format', 'pdf')
-        include_graphics = data.get('includeGraphics', True)
-        include_details = data.get('includeDetails', True)
-        
-        if not start_date or not end_date:
-            return jsonify({'error': 'Fechas requeridas'}), 400
-        
-        # Generación de reporte
-        conn = sqlite3.connect(DATABASE)
-        
-        # Obtener datos según el tipo de reporte
-        if report_type == 'complete':
-            query = '''
-                SELECT c.*, v.placa, v.fallas FROM conductores c
-                LEFT JOIN vehiculos v ON c.id = v.conductor_id
-                WHERE DATE(c.fecha_inspeccion) BETWEEN ? AND ?
-            '''
-            df = pd.read_sql_query(query, conn, params=(start_date, end_date))
-        elif report_type == 'fatigue':
-            query = '''
-                SELECT * FROM conductores
-                WHERE nivel_fatiga != 'Normal' 
-                AND DATE(fecha_inspeccion) BETWEEN ? AND ?
-            '''
-            df = pd.read_sql_query(query, conn, params=(start_date, end_date))
-        elif report_type == 'failures':
-            query = '''
-                SELECT c.nombre, v.* FROM vehiculos v
-                JOIN conductores c ON v.conductor_id = c.id
-                WHERE v.fallas IS NOT NULL AND v.fallas != '[]'
-                AND DATE(c.fecha_inspeccion) BETWEEN ? AND ?
-            '''
-            df = pd.read_sql_query(query, conn, params=(start_date, end_date))
-        else:  # summary
-            query = '''
-                SELECT 
-                    COUNT(*) as total_inspecciones,
-                    SUM(CASE WHEN nivel_fatiga != 'Normal' THEN 1 ELSE 0 END) as conductores_fatiga,
-                    COUNT(DISTINCT placa) as vehiculos_inspeccionados
-                FROM conductores c
-                LEFT JOIN vehiculos v ON c.id = v.conductor_id
-                WHERE DATE(c.fecha_inspeccion) BETWEEN ? AND ?
-            '''
-            df = pd.read_sql_query(query, conn, params=(start_date, end_date))
-        
-        conn.close()
-        
-        if format_type == 'json':
-            return jsonify({
-                'success': True,
-                'report_type': report_type,
-                'period': f"{start_date} - {end_date}",
-                'records': len(df),
-                'data': df.to_dict('records')
-            })
-        
-        # Para PDF/Excel - generación de archivo
-        report_data = {
-            'id': f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            'name': f"Reporte {report_type.title()}",
-            'startDate': start_date,
-            'endDate': end_date,
-            'created': datetime.now().isoformat(),
-            'records': len(df),
-            'status': 'completed'
-        }
-        
-        if format_type == 'pdf':
-            # Generación de PDF
-            buffer = io.BytesIO()
-            # Aquí iría la lógica de generación de PDF real
-            buffer.write(b"PDF Report Content")
-            buffer.seek(0)
-            
-            return send_file(
-                buffer,
-                as_attachment=True,
-                download_name=f"reporte_{start_date}_{end_date}.pdf",
-                mimetype='application/pdf'
-            )
-        
-        elif format_type == 'excel':
-            # Generar Excel real
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='Reporte', index=False)
-            buffer.seek(0)
-            
-            return send_file(
-                buffer,
-                as_attachment=True,
-                download_name=f"reporte_{start_date}_{end_date}.xlsx",
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-        
-    except Exception as e:
-        return jsonify({'error': f'Error generando reporte: {str(e)}'}), 500
-
 @app.route('/api/reports/history', methods=['GET'])
 def get_report_history():
     """Obtener historial de reportes generados"""
@@ -944,10 +837,147 @@ def delete_report(report_id):
     except Exception as e:
         return jsonify({'error': f'Error eliminando reporte: {str(e)}'}), 500
 
+@app.route('/api/drivers', methods=['GET'])
+def get_drivers():
+    """Obtener información específica de conductores para cumplimiento"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        # Obtener todos los conductores con información completa
+        cursor.execute('''
+            SELECT id, nombre, dias_desde_inspeccion, nivel_fatiga, status_color,
+                   fecha_inspeccion, horas_trabajadas
+            FROM conductores
+            ORDER BY dias_desde_inspeccion DESC
+        ''')
+        
+        rows = cursor.fetchall()
+        drivers = []
+        
+        for row in rows:
+            driver = {
+                'id': row[0],
+                'nombre': row[1],
+                'dias_desde_inspeccion': row[2] or 0,
+                'nivel_fatiga': row[3] or 'normal',
+                'status_color': row[4] or 'verde',
+                'fecha_inspeccion': row[5] or 'N/A',
+                'horas_trabajadas': row[6] or 0
+            }
+            
+            # Buscar vehículo asignado
+            cursor.execute('''
+                SELECT codigo FROM vehiculos 
+                WHERE conductor_id = ? OR conductor_nombre LIKE ?
+                LIMIT 1
+            ''', (driver['id'], f"%{driver['nombre']}%"))
+            
+            vehicle_result = cursor.fetchone()
+            if vehicle_result:
+                driver['vehiculo_asignado'] = vehicle_result[0]
+            
+            drivers.append(driver)
+        
+        # Calcular estadísticas
+        total = len(drivers)
+        cumple = len([d for d in drivers if d['status_color'] == 'verde'])
+        alerta = len([d for d in drivers if d['status_color'] == 'amarillo'])
+        critico = len([d for d in drivers if d['status_color'] == 'rojo'])
+        
+        stats = {
+            'total': total,
+            'cumple': cumple,
+            'alerta': alerta,
+            'critico': critico,
+            'porcentaje_cumplimiento': round((cumple / total * 100) if total > 0 else 0, 1)
+        }
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'conductores': drivers,
+                'estadisticas': stats
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error obteniendo conductores: {str(e)}'}), 500
+
+@app.route('/api/drivers/<driver_id>', methods=['GET'])
+def get_driver_details(driver_id):
+    """Obtener detalles específicos de un conductor"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        # Obtener información del conductor
+        cursor.execute('''
+            SELECT * FROM conductores WHERE id = ?
+        ''', (driver_id,))
+        
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Conductor no encontrado'}), 404
+        
+        # Construir objeto conductor completo
+        columns = [desc[0] for desc in cursor.description]
+        driver = dict(zip(columns, row))
+        
+        # Obtener fallas relacionadas con este conductor
+        cursor.execute('''
+            SELECT descripcion, categoria, severidad, fecha_reporte
+            FROM fallas_mecanicas 
+            WHERE conductor_id = ?
+            ORDER BY fecha_reporte DESC
+        ''', (driver_id,))
+        
+        failures = cursor.fetchall()
+        driver['fallas_asociadas'] = [
+            {
+                'descripcion': f[0],
+                'categoria': f[1],
+                'severidad': f[2],
+                'fecha': f[3]
+            } for f in failures
+        ]
+        
+        # Obtener historial de fatiga
+        cursor.execute('''
+            SELECT nivel_fatiga, horas_trabajadas, fecha_analisis, recomendacion
+            FROM control_fatiga 
+            WHERE conductor_id = ?
+            ORDER BY fecha_analisis DESC
+            LIMIT 5
+        ''', (driver_id,))
+        
+        fatigue_history = cursor.fetchall()
+        driver['historial_fatiga'] = [
+            {
+                'nivel': f[0],
+                'horas': f[1],
+                'fecha': f[2],
+                'recomendacion': f[3]
+            } for f in fatigue_history
+        ]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': driver
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error obteniendo detalles del conductor: {str(e)}'}), 500
+
 # Inicializar DB para Vercel
 init_db()
 
 # Para Vercel, el app object es el handler
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    debug_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEBUG', 'False').lower() == 'true'
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)

@@ -9,6 +9,7 @@ import {
   BarChart3, 
   FileText,
   Settings,
+  Users,
   X
 } from 'lucide-react';
 import './Sidebar.css';
@@ -61,6 +62,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: 'Reportes',
       icon: FileText,
       description: 'Generación de reportes PDF/Excel'
+    },
+    {
+      path: '/drivers',
+      label: 'Conductores',
+      icon: Users,
+      description: 'Cumplimiento de conductores'
     },
     {
       path: '/normalization',

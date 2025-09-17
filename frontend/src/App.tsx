@@ -9,6 +9,7 @@ import VehicleFailures from './components/VehicleFailures';
 import Charts from './components/Charts';
 import Reports from './components/Reports';
 import NormalizationReport from './components/NormalizationReport';
+import DriverCompliance from './components/DriverCompliance';
 import NotFound from './pages/NotFound';
 import './App.css';
 
@@ -30,6 +31,7 @@ const App: React.FC = () => {
           <Route path="/charts" element={<Charts />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/normalization" element={<NormalizationReport />} />
+          <Route path="/drivers" element={<DriverCompliance />} />
           
           {/* Ruta 404 - debe estar al final */}
           <Route path="*" element={<NotFound />} />
