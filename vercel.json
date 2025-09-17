@@ -2,20 +2,7 @@
   "version": 2,
   "buildCommand": "cd frontend && npm ci && npm run build",
   "outputDirectory": "frontend/build",
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
-    }
-  ],
   "env": {
-    "FLASK_ENV": "production",
-    "VERCEL": "1"
+    "REACT_APP_API_URL": "https://analisis-exel-backend.vercel.app"
   }
 }

@@ -1,16 +1,10 @@
 # Dependencies
 node_modules/
-__pycache__/
-api/__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
 
 # Build outputs
 frontend/build/
+build/
 dist/
-*.egg-info/
 
 # Development
 .DS_Store
@@ -21,33 +15,9 @@ dist/
 .env.production.local
 
 # Temporary files
-hqfo_temp.db
 *.tmp
 *.temp
-
-# Test and debug files
-test_*.py
-debug_*.py
-*_test.py
-analyze_*.py
-diagnostico_*.py
-complete_test.py
-simple_test.py
-quick_*.py
-system_check.py
-direct_test.py
-final_test.py
-upload_test.py
-
-# Batch test files
-run_test.bat
-run_tests.bat
-test_*.bat
-*_test.bat
-
-# PowerShell test files
-test_*.ps1
-*_test.ps1
+*.log
 
 # Excel test files
 test_*.xlsx
@@ -78,13 +48,10 @@ jspm_packages/
 # Optional npm cache directory
 .npm
 
-# Optional REPL history
+# NPM/Yarn
+.npm
 .node_repl_history
-
-# Output of 'npm pack'
 *.tgz
-
-# Yarn Integrity file
 .yarn-integrity
 
 # IDE
@@ -104,31 +71,9 @@ ehthumbs.db
 Thumbs.db
 
 # Temporary files
-uploads/
 temp/
-*.tmp
-*.temp
-
-# Backups
-backups/
+uploads/
 *.backup
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Virtual environments
-venv/
-env/
-ENV/
-
-# Local development files
-run.bat
-start.bat
-config.json
+# Vercel
+.vercel

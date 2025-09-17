@@ -1,143 +1,285 @@
-# 🚗 Sistema de Inspección Vehicular
+# 🚗 Sistema HQ-FO-40 - Frontend React# 🚗 Sistema de Inspección Vehicular
 
-Sistema integral de gestión y automatización para inspecciones técnicas vehiculares con tecnología moderna.
 
-## 🚀 Inicio Rápido
 
-### Opción 1: Instalación Automática (Recomendada)
+> **Interfaz de usuario para análisis de inspecciones vehiculares HQ-FO-40**Sistema integral de gestión y automatización para inspecciones técnicas vehiculares con tecnología moderna.
+
+
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/loltrolgamer12/analisis-exel)## 🚀 Inicio Rápido
+
+
+
+## 📋 Descripción### Opción 1: Instalación Automática (Recomendada)
+
 ```batch
-# Descargar e instalar todo el sistema
+
+Frontend React TypeScript para el sistema de análisis de inspecciones diarias de vehículos HQ-FO-40. Proporciona una interfaz moderna y responsive para:# Descargar e instalar todo el sistema
+
 install.bat
 
-# Iniciar sistema completo  
-start.bat
+- ✅ **Subida de archivos Excel** HQ-FO-40
 
-# Acceder a la aplicación
-http://localhost:3000
-```
+- 📊 **Dashboard interactivo** con métricas en tiempo real  # Iniciar sistema completo  
 
-### Opción 2: Docker Manual
+- 🔍 **Filtros avanzados** por estado, fatiga, zona, etc.start.bat
+
+- 📈 **Gráficos dinámicos** con Recharts
+
+- 👥 **Control de fatiga** de conductores# Acceder a la aplicación
+
+- 🚗 **Gestión de vehículos** y fallas mecánicashttp://localhost:3000
+
+- 📋 **Reportes automáticos** y exportación```
+
+
+
+## 🏗️ Arquitectura### Opción 2: Docker Manual
+
 ```batch
-# Si ya tienes Docker instalado
-docker-compose up -d --build
 
-# Verificar estado
-docker-compose ps
-```
+```# Si ya tienes Docker instalado
 
-## 📋 Requisitos del Sistema
+analisis-exel-frontend/docker-compose up -d --build
 
-- **Sistema Operativo**: Windows 10/11
-- **RAM**: Mínimo 2GB, Recomendado 4GB+ 
-- **Espacio en Disco**: 5GB libres
-- **Docker Desktop**: Versión más reciente
-- **Node.js**: 16+ (se instala automáticamente)
+├── 🎨 frontend/               # Aplicación React
+
+│   ├── src/# Verificar estado
+
+│   │   ├── components/       # Componentes Reactdocker-compose ps
+
+│   │   ├── config/          # Configuración API  ```
+
+│   │   ├── pages/           # Páginas principales
+
+│   │   └── types/           # TypeScript types## 📋 Requisitos del Sistema
+
+│   ├── public/              # Archivos estáticos
+
+│   └── package.json         # Dependencias- **Sistema Operativo**: Windows 10/11
+
+├── 📋 DOCUMENTACION_TECNICA.md- **RAM**: Mínimo 2GB, Recomendado 4GB+ 
+
+├── 🚀 vercel.json           # Deploy configuration- **Espacio en Disco**: 5GB libres
+
+└── 📖 README.md- **Docker Desktop**: Versión más reciente
+
+```- **Node.js**: 16+ (se instala automáticamente)
+
 - **Python**: 3.8+ (se instala automáticamente)
+
+## 🚀 Deploy Automático
 
 ## 🏗️ Arquitectura del Sistema
 
+Este repositorio está configurado para deploy automático en Vercel:
+
 ```
-📦 vehicle-inspection-system/
-├── 🐍 backend/              # API Flask + IA
+
+- **Frontend**: Se deploya desde `/frontend`
+- **Backend**: Conecta con API externa en repositorio separado
+- **URL de producción**: Se configura automáticamente
+
+## 🏗️ Arquitectura
+
+```
+📦 analisis-exel-frontend/
 ├── ⚛️  frontend/             # React Dashboard  
-├── 🐳 docker-compose.yml    # Orquestación
-├── 📊 monitoring/           # Prometheus + Grafana
+├── � DOCUMENTACION_TECNICA.md
+
+## 🛠️ Desarrollo Local├── 📊 monitoring/           # Prometheus + Grafana
+
 ├── 🌐 nginx/               # Reverse Proxy
-├── 📚 docs/                # Documentación
-├── 📁 uploads/             # Archivos subidos
-├── 📋 logs/                # Logs del sistema
+
+### Prerrequisitos├── 📚 docs/                # Documentación
+
+- Node.js 16+├── 📁 uploads/             # Archivos subidos
+
+- npm o yarn├── 📋 logs/                # Logs del sistema
+
 └── 💾 backups/             # Respaldos
-```
 
-## 🌐 URLs del Sistema
+### Instalación```
 
-| Servicio | URL | Descripción |
-|----------|-----|-------------|
+
+
+```bash## 🌐 URLs del Sistema
+
+# Clonar repositorio
+
+git clone https://github.com/loltrolgamer12/analisis-exel.git| Servicio | URL | Descripción |
+
+cd analisis-exel|----------|-----|-------------|
+
 | **Frontend** | http://localhost:3000 | Dashboard principal |
-| **Backend API** | http://localhost:5000 | API REST |
-| **Grafana** | http://localhost:3001 | Monitoreo (admin/admin123) |
-| **Prometheus** | http://localhost:9090 | Métricas |
+
+# Instalar dependencias  | **Backend API** | http://localhost:5000 | API REST |
+
+cd frontend| **Grafana** | http://localhost:3001 | Monitoreo (admin/admin123) |
+
+npm install| **Prometheus** | http://localhost:9090 | Métricas |
+
 | **Health Check** | http://localhost:5000/health | Estado del sistema |
 
-## 🎯 Funcionalidades Principales
+# Iniciar desarrollo
 
-### 📤 Carga de Archivos
-- ✅ Formatos soportados: `.xlsx`, `.xls`, `.csv`
-- ✅ Tamaño máximo: 50MB
-- ✅ Validación automática de estructura
-- ✅ Procesamiento asíncrono
+npm start## 🎯 Funcionalidades Principales
 
-### 📊 Análisis Automático
-- ✅ Estadísticas descriptivas
-- ✅ Detección de anomalías
-- ✅ Análisis de calidad de datos
-- ✅ Visualizaciones interactivas
-- ✅ Reportes automatizados
-
-### 🤖 IA Predictiva
-- ✅ Predicción de fallas
-- ✅ Análisis de tendencias
-- ✅ Alertas inteligentes
-- ✅ Recomendaciones automáticas
-
-### 📈 Monitoreo y Alertas
-- ✅ Dashboard en tiempo real
-- ✅ Métricas de rendimiento
-- ✅ Alertas por email/Slack
-- ✅ Logs centralizados
-
-## 🛠️ Comandos Útiles
-
-```batch
-# Gestión del Sistema
-start.bat          # Iniciar sistema completo
-stop.bat           # Detener todos los servicios
-restart.bat        # Reiniciar sistema
-status.bat         # Ver estado de servicios
-logs.bat           # Logs en tiempo real
-
-# Instalación y Validación
-install.bat        # Instalación completa
-setup.bat          # Instalación + validación automática
-validate.bat       # Validador completo del sistema
-validate.ps1       # Validador avanzado (PowerShell)
-
-# Utilidades
-utils.bat health   # Verificar salud del sistema
-utils.bat backup   # Crear respaldo del sistema
-utils.bat clean    # Limpiar archivos temporales
-utils.bat status   # Estado detallado
 ```
 
-## 📖 Guías Detalladas
+### 📤 Carga de Archivos
+
+### Variables de Entorno- ✅ Formatos soportados: `.xlsx`, `.xls`, `.csv`
+
+- ✅ Tamaño máximo: 50MB
+
+Crea un archivo `.env.local` en `/frontend`:- ✅ Validación automática de estructura
+
+- ✅ Procesamiento asíncrono
+
+```env
+
+REACT_APP_API_URL=http://localhost:5000### 📊 Análisis Automático
+
+```- ✅ Estadísticas descriptivas
+
+- ✅ Detección de anomalías
+
+## 🔧 Configuración de API- ✅ Análisis de calidad de datos
+
+- ✅ Visualizaciones interactivas
+
+El frontend se conecta automáticamente al backend:- ✅ Reportes automatizados
+
+
+
+- **Desarrollo**: `http://localhost:5000`  ### 🤖 IA Predictiva
+
+- **Producción**: `https://analisis-exel-backend.vercel.app`- ✅ Predicción de fallas
+
+- ✅ Análisis de tendencias
+
+La configuración está en `/frontend/src/config/api.ts`- ✅ Alertas inteligentes
+
+- ✅ Recomendaciones automáticas
+
+## 📦 Scripts Disponibles
+
+### 📈 Monitoreo y Alertas
+
+```bash- ✅ Dashboard en tiempo real
+
+npm start          # Desarrollo local- ✅ Métricas de rendimiento
+
+npm run build      # Build producción- ✅ Alertas por email/Slack
+
+npm run build:dev  # Build sin warnings estrictos- ✅ Logs centralizados
+
+npm test           # Tests automatizados  
+
+npm run build:analyze  # Análisis de bundle## 🛠️ Comandos Útiles
+
+```
+
+```batch
+
+## 🌟 Características# Gestión del Sistema
+
+start.bat          # Iniciar sistema completo
+
+### 📊 Dashboard Principalstop.bat           # Detener todos los servicios
+
+- Métricas en tiempo realrestart.bat        # Reiniciar sistema
+
+- Alertas críticasstatus.bat         # Ver estado de servicios
+
+- Gráficos interactivoslogs.bat           # Logs en tiempo real
+
+
+
+### 🔍 Filtros Avanzados  # Instalación y Validación
+
+- Por estado de vehículosinstall.bat        # Instalación completa
+
+- Por nivel de fatigasetup.bat          # Instalación + validación automática
+
+- Por zona geográficavalidate.bat       # Validador completo del sistema
+
+- Búsqueda de textovalidate.ps1       # Validador avanzado (PowerShell)
+
+
+
+### 📈 Visualización de Datos# Utilidades
+
+- Gráficos de barras y tortautils.bat health   # Verificar salud del sistema
+
+- Tendencias temporalesutils.bat backup   # Crear respaldo del sistema
+
+- Heatmaps de actividadutils.bat clean    # Limpiar archivos temporales
+
+utils.bat status   # Estado detallado
+
+### 📱 Responsive Design```
+
+- Optimizado para desktop
+
+- Compatible con tablets## 📖 Guías Detalladas
+
+- UI/UX moderna
 
 - [🚀 Guía de Inicio Rápido](docs/QUICK_START.md)
-- [🔧 Configuración Avanzada](docs/CONFIGURATION.md)
+
+## 📚 Documentación- [🔧 Configuración Avanzada](docs/CONFIGURATION.md)
+
 - [🔍 Solución de Problemas](docs/TROUBLESHOOTING.md) 
-- [📚 API Reference](docs/API.md)
-- [🔒 Seguridad](docs/SECURITY.md)
+
+- [Documentación Técnica](DOCUMENTACION_TECNICA.md)- [📚 API Reference](docs/API.md)
+
+- [Manual de Usuario](USER-MANUAL.md)  - [🔒 Seguridad](docs/SECURITY.md)
+
+- [Guía de Deploy](DESPLIEGUE_MANUAL.md)
 
 ## 🎬 Flujo de Trabajo Típico
 
+## 🔗 Repositorios Relacionados
+
 1. **📤 Subir Archivo**: Arrastra tu archivo HQ-FO-40.xlsx al dashboard
-2. **⚡ Procesamiento**: El sistema analiza automáticamente los datos
-3. **📊 Visualización**: Ve gráficas y estadísticas en tiempo real
+
+- **Backend API**: `analisis-exel-backend` (repositorio separado)2. **⚡ Procesamiento**: El sistema analiza automáticamente los datos
+
+- **Documentación**: Incluida en este repositorio3. **📊 Visualización**: Ve gráficas y estadísticas en tiempo real
+
 4. **🤖 IA**: Recibe predicciones y recomendaciones inteligentes
-5. **📋 Reportes**: Exporta reportes completos en Excel/PDF
+
+## 🤝 Contribución5. **📋 Reportes**: Exporta reportes completos en Excel/PDF
+
 6. **📈 Monitoreo**: Supervisa métricas en Grafana
 
-## 🧪 Validación del Sistema
+1. Fork del repositorio
 
-### Validación Automática
-```batch
+2. Crear branch: `git checkout -b feature/nueva-funcionalidad`## 🧪 Validación del Sistema
+
+3. Commit: `git commit -m 'Add nueva funcionalidad'`  
+
+4. Push: `git push origin feature/nueva-funcionalidad`### Validación Automática
+
+5. Pull Request```batch
+
 # Validación básica (recomendada)
-validate.bat
 
-# Validación avanzada con PowerShell
+## 📄 Licenciavalidate.bat
+
+
+
+MIT License - Ver [LICENSE](LICENSE) para detalles# Validación avanzada con PowerShell
+
 validate.ps1
 
+---
+
 # Validación con tests de rendimiento
-validate.ps1 -Performance -Detailed
+
+**🚀 Sistema desarrollado para análisis profesional de inspecciones vehiculares HQ-FO-40**validate.ps1 -Performance -Detailed
 
 # Instalación + validación en un comando
 setup.bat

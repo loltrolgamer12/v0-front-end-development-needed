@@ -1,7 +1,4 @@
-backend/
-frontend/node_modules/
-frontend/.env*
+node_modules/
+.env*
 *.log
-*.pyc
-__pycache__/
 .DS_Store

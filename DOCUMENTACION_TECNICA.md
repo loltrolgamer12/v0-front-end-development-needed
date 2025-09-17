@@ -80,20 +80,12 @@ El **Sistema de Análisis HQ-FO-40** es una aplicación web completa desarrollad
 - **Tablas**: `conductores`, `vehiculos`, `inspecciones`
 - **Persistencia**: Solo durante la sesión de trabajo
 
-#### 10. 🛠️ API REST Completa
-- **Framework**: Flask con CORS habilitado
-- **Endpoints Implementados**:
-  - `POST /api/upload` - Carga de archivos
-  - `GET /api/search` - Búsqueda y filtrado
-  - `GET /api/conductores/fatiga` - Control de fatiga
-  - `GET /api/vehiculos/fallas` - Análisis de fallas
-  - `GET /api/graficas/<tipo>` - Generación de gráficas
-  - `POST /api/reports/generate` - Generación de reportes
-  - `GET /api/reports/history` - Historial de reportes
-  - `GET /api/reports/download/<id>` - Descarga de reportes
-  - `DELETE /api/reports/<id>` - Eliminación de reportes
-  - `GET /api/dashboard` - Datos del dashboard
-  - `GET /api/status` - Estado del sistema
+#### 10. � Integración con API Backend
+- **Backend Separado**: Sistema independiente deployado en Vercel
+- **Comunicación**: Endpoints REST con manejo de CORS
+- **Configuración**: URLs automáticas para desarrollo y producción
+- **Autenticación**: Headers de autenticación para requests
+- **Manejo de Errores**: Sistema robusto de error handling
 
 ## 🧩 Arquitectura Técnica
 
@@ -115,27 +107,23 @@ frontend/src/
 └── App.tsx                         # Aplicación principal
 ```
 
-### Backend (Flask + Python)
+### Configuración de API
 ```
-backend/
-├── app.py                          # API principal con todos los endpoints
-├── hqfo_analyzer.py               # Analizador especializado HQ-FO-40
-└── requirements.txt               # Dependencias Python
+src/config/
+└── api.ts                         # Configuración de endpoints del backend
 ```
 
 ## 🚀 Instrucciones de Instalación y Uso
 
 ### 1. Instalación Automática
 ```bash
-# Ejecutar instalador (ya creado)
-install_quick.bat
+# Ejecutar instalador del frontend
+cd frontend && npm install
 ```
 
-### 2. Instalación Manual
+### 2. Ejecución
 ```bash
-# Backend
-cd backend
-pip install flask flask-cors pandas openpyxl matplotlib seaborn
+# Desarrollo
 
 # Frontend  
 cd frontend
