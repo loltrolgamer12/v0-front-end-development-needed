@@ -1,45 +1,16 @@
-# Backend - Sistema de Inspecciones Vehiculares v2.0.0
-Flask==3.0.0
+# Backend - Sistema de Inspecciones Vehiculares v2.0.0 - Vercel Optimized
+Flask==2.3.3
 Flask-CORS==4.0.0
-Flask-Caching==2.1.0
-Werkzeug==3.0.1
+Werkzeug==2.3.7
 
 # Análisis de datos
-pandas==2.1.4
-numpy==1.25.2
+pandas==2.0.3
+numpy==1.24.4
 openpyxl==3.1.2
-xlsxwriter==3.1.9
 
-# Visualización y gráficas  
-matplotlib==3.8.2
-seaborn==0.13.0
-plotly==5.17.0
+# Visualización ligera
+matplotlib==3.7.2
+seaborn==0.12.2
 
-# Machine Learning básico
-scikit-learn==1.3.2
-
-# Utilidades
+# Utilidades esenciales
 python-dateutil==2.8.2
-python-dotenv==1.0.0
-requests==2.31.0
-
-# Logging y monitoreo
-loguru==0.7.2
-psutil==5.9.6
-
-# Métricas y monitoring
-prometheus-client==0.19.0
-flask-prometheus-metrics==1.0.0
-
-# Testing
-pytest==7.4.3
-pytest-flask==1.3.0
-pytest-cov==4.1.0
-
-# Producción
-gunicorn==21.2.0
-gevent==23.9.1
-
-# Seguridad
-flask-limiter==3.5.0
-flask-talisman==1.1.0
