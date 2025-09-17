@@ -15,6 +15,13 @@ import './App.css';
 
 // Configuración de rutas de la aplicación
 const App: React.FC = () => {
+  // Solo limpiar cache temporal al iniciar
+  React.useEffect(() => {
+    // Limpiar solo datos temporales de uploads
+    sessionStorage.removeItem('lastUploadResult');
+    sessionStorage.removeItem('tempAnalysisData');
+  }, []);
+
   return (
     <div className="App">
       <Layout>

@@ -1,14 +1,15 @@
 # Dependencies
 node_modules/
-backend/__pycache__/
-backend/*.pyc
+__pycache__/
+api/__pycache__/
+*.pyc
 *.pyo
 *.pyd
 .Python
 
 # Build outputs
 frontend/build/
-backend/dist/
+dist/
 *.egg-info/
 
 # Development
@@ -18,6 +19,39 @@ backend/dist/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Temporary files
+hqfo_temp.db
+*.tmp
+*.temp
+
+# Test and debug files
+test_*.py
+debug_*.py
+*_test.py
+analyze_*.py
+diagnostico_*.py
+complete_test.py
+simple_test.py
+quick_*.py
+system_check.py
+direct_test.py
+final_test.py
+upload_test.py
+
+# Batch test files
+run_test.bat
+run_tests.bat
+test_*.bat
+*_test.bat
+
+# PowerShell test files
+test_*.ps1
+*_test.ps1
+
+# Excel test files
+test_*.xlsx
+test_*.xls
 
 # Logs
 npm-debug.log*

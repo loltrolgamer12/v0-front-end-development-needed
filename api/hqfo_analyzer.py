@@ -7,11 +7,57 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import re
+import os
+import time
 from typing import Dict, List, Tuple, Optional
 import json
 
+# Importar logger - manejar tanto ejecución desde directorio api como desde raíz
+try:
+    from hqfo_logger import get_logger
+except ImportError:
+    try:
+        from api.hqfo_logger import get_logger
+    except ImportError:
+        # Fallback si no se puede importar el logger
+        class DummyLogger:
+            def info(self, msg, *args, **kwargs): print(f"INFO: {msg}")
+            def debug(self, msg, *args, **kwargs): print(f"DEBUG: {msg}")
+            def warning(self, msg, *args, **kwargs): print(f"WARNING: {msg}")
+            def error(self, msg, *args, **kwargs): print(f"ERROR: {msg}")
+            def critical(self, msg, *args, **kwargs): print(f"CRITICAL: {msg}")
+            def log_function_entry(self, *args, **kwargs): pass
+            def log_function_exit(self, *args, **kwargs): pass
+        
+        def get_logger(component):
+            return DummyLogger()
+
+def convert_numpy_types(obj):
+    """
+    Convierte recursivamente tipos numpy/pandas a tipos Python nativos para serialización JSON
+    """
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (pd.Timestamp, pd.Timedelta)):
+        return str(obj)
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_numpy_types(item) for item in obj]
+    elif pd.isna(obj):
+        return None
+    else:
+        return obj
+
 class HQFOAnalyzer:
     def __init__(self):
+        self.logger = get_logger("ANALYZER")
+        self.logger.info("=== INICIALIZANDO ANALIZADOR HQ-FO-40 ===")
+        
         self.raw_data = None
         self.processed_data = {
             'conductores': [],
@@ -212,10 +258,15 @@ class HQFOAnalyzer:
         """
         Normaliza descripciones de fallas para mejor categorización
         """
-        if not description or pd.isna(description):
+        # Validar tipo y valores nulos
+        if description is None or pd.isna(description):
             return ""
         
-        description = str(description).strip().lower()
+        # Asegurar que sea string
+        if not isinstance(description, str):
+            description = str(description)
+            
+        description = description.strip().lower()
         
         # Correcciones ortográficas comunes
         corrections = {
@@ -369,224 +420,517 @@ class HQFOAnalyzer:
         """
         Análisis principal del archivo Excel HQ-FO-40
         """
+        start_time = time.time()
+        self.logger.log_function_entry("analyze_excel", {
+            'file_path': file_path,
+            'file_exists': os.path.exists(file_path) if file_path else False,
+            'file_size': os.path.getsize(file_path) if file_path and os.path.exists(file_path) else 0
+        })
+        
         try:
-            # Leer todas las hojas del Excel
-            excel_file = pd.ExcelFile(file_path)
-            all_sheets = {}
+            # Verificar que el archivo existe
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Archivo no encontrado: {file_path}")
             
-            for sheet_name in excel_file.sheet_names:
-                df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
-                all_sheets[sheet_name] = df
+            file_size = os.path.getsize(file_path)
+            self.logger.info("Archivo Excel localizado", {
+                'file_path': file_path,
+                'file_size_bytes': file_size,
+                'file_size_mb': round(file_size / (1024*1024), 2)
+            })
+            
+            # Leer todas las hojas del Excel
+            self.logger.info("Iniciando lectura de hojas Excel")
+            read_start = time.time()
+            
+            excel_file = pd.ExcelFile(file_path)
+            read_duration = time.time() - read_start
+            
+            self.logger.info("Excel file opened", {
+                'sheet_names': excel_file.sheet_names,
+                'sheet_count': len(excel_file.sheet_names),
+                'read_duration': round(read_duration, 4)
+            })
+            
+            all_sheets = {}
+            try:
+                for i, sheet_name in enumerate(excel_file.sheet_names):
+                    sheet_start = time.time()
+                    self.logger.debug(f"Procesando hoja {i+1}/{len(excel_file.sheet_names)}: {sheet_name}")
+                    
+                    try:
+                        # Leer con header=0 para usar los nombres de columna reales
+                        df = pd.read_excel(file_path, sheet_name=sheet_name, header=0)
+                        sheet_duration = time.time() - sheet_start
+                        
+                        self.logger.info(f"Hoja procesada: {sheet_name}", {
+                            'rows': df.shape[0],
+                            'columns': df.shape[1],
+                            'processing_duration': round(sheet_duration, 4),
+                            'has_data': not df.empty,
+                            'memory_usage': f"{df.memory_usage(deep=True).sum() / 1024:.2f} KB"
+                        })
+                        
+                        all_sheets[sheet_name] = df
+                        
+                    except Exception as sheet_error:
+                        self.logger.warning(f"Error procesando hoja {sheet_name}", sheet_error)
+                        continue
+            finally:
+                # Cerrar el ExcelFile explícitamente
+                try:
+                    excel_file.close()
+                    self.logger.debug("ExcelFile cerrado correctamente")
+                except Exception as close_error:
+                    self.logger.warning(f"Error cerrando ExcelFile: {str(close_error)}")
+            
+            if not all_sheets:
+                raise ValueError("No se pudieron leer hojas del archivo Excel")
             
             # Buscar la hoja principal de inspección
+            self.logger.info("Identificando hoja principal de inspección")
             main_sheet = self._identify_main_sheet(all_sheets)
+            
+            if main_sheet is None or main_sheet.empty:
+                raise ValueError("No se pudo identificar la hoja principal de inspección")
+            
+            log_data = {
+                'shape': main_sheet.shape,
+                'non_null_cells': main_sheet.count().sum(),
+                'null_cells': main_sheet.isnull().sum().sum()
+            }
+            self.logger.info("Hoja principal identificada", convert_numpy_types(log_data))
+            
             self.raw_data = main_sheet
             
-            # Procesar datos por secciones
-            self._extract_vehicle_info()
-            self._extract_driver_info() 
-            self._extract_mechanical_failures()
-            self._analyze_fatigue_control()
-            self._generate_status_colors()
+            # Procesar datos por secciones con timing individual
+            sections = [
+                ("vehículos", self._extract_vehicle_info),
+                ("conductores", self._extract_driver_info), 
+                ("fallas mecánicas", self._extract_mechanical_failures),
+                ("control de fatiga", self._analyze_fatigue_control),
+                ("colores de estado", self._generate_status_colors)
+            ]
+            
+            for section_name, section_func in sections:
+                section_start = time.time()
+                self.logger.info(f"Extrayendo información de {section_name}")
+                
+                try:
+                    section_func()
+                    section_duration = time.time() - section_start
+                    self.logger.info(f"Sección {section_name} completada", {
+                        'duration': round(section_duration, 4)
+                    })
+                except Exception as section_error:
+                    self.logger.error(f"Error en sección {section_name}", section_error)
+                    # Continuar con las demás secciones
             
             # Generar reporte de normalización
+            self.logger.info("Generando reporte de normalización")
+            norm_start = time.time()
             normalization_report = self.generate_normalization_report()
+            norm_duration = time.time() - norm_start
             
-            return {
+            total_duration = time.time() - start_time
+            
+            # Log resumen final
+            data_summary = {
+                'conductores': len(self.processed_data.get('conductores', [])),
+                'vehiculos': len(self.processed_data.get('vehiculos', [])),
+                'fallas_mecanicas': len(self.processed_data.get('fallas_mecanicas', [])),
+                'control_fatiga': len(self.processed_data.get('control_fatiga', []))
+            }
+            
+            self.logger.info("Análisis completado exitosamente", {
+                'total_duration': round(total_duration, 4),
+                'norm_duration': round(norm_duration, 4),
+                'data_extracted': data_summary
+            })
+            
+            result = {
                 'success': True,
                 'data': self.processed_data,
                 'summary': self._generate_summary(),
                 'normalization_report': normalization_report,
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'processing_stats': {
+                    'total_duration_seconds': round(total_duration, 4),
+                    'file_size_mb': round(file_size / (1024*1024), 2),
+                    'sheets_processed': len(all_sheets),
+                    'data_points_extracted': sum(data_summary.values())
+                }
             }
             
+            # Convertir tipos numpy a tipos Python nativos para serialización JSON
+            result = convert_numpy_types(result)
+            
+            self.logger.log_function_exit("analyze_excel", result, total_duration)
+            return result
+            
         except Exception as e:
-            return {
+            total_duration = time.time() - start_time
+            self.logger.critical("Error crítico en análisis de Excel", e, {
+                'file_path': file_path,
+                'total_duration': round(total_duration, 4),
+                'processed_data_keys': list(self.processed_data.keys()) if hasattr(self, 'processed_data') else []
+            })
+            
+            error_result = {
                 'success': False,
                 'error': f"Error procesando archivo: {str(e)}",
-                'timestamp': datetime.now().isoformat()
+                'type': type(e).__name__,
+                'timestamp': datetime.now().isoformat(),
+                'processing_stats': {
+                    'total_duration_seconds': round(total_duration, 4),
+                    'failed_at': 'analysis'
+                }
             }
+            
+            # Convertir tipos numpy a tipos Python nativos para serialización JSON
+            return convert_numpy_types(error_result)
 
     def _identify_main_sheet(self, sheets: Dict[str, pd.DataFrame]) -> pd.DataFrame:
         """
         Identifica la hoja principal de inspección
         """
+        entry_data = {
+            'sheet_count': len(sheets),
+            'sheet_names': list(sheets.keys())
+        }
+        self.logger.log_function_entry("_identify_main_sheet", convert_numpy_types(entry_data))
+        
         # Buscar por nombre de hoja
         priority_names = ['inspeccion', 'hq-fo-40', 'vehiculo', 'diaria']
         
-        for name in priority_names:
+        for priority_name in priority_names:
             for sheet_name in sheets.keys():
-                if name.lower() in sheet_name.lower():
+                if priority_name.lower() in sheet_name.lower():
+                    log_data = {
+                        'matched_priority': priority_name,
+                        'sheet_shape': sheets[sheet_name].shape
+                    }
+                    self.logger.info(f"Hoja principal identificada por nombre: {sheet_name}", convert_numpy_types(log_data))
                     return sheets[sheet_name]
         
         # Si no encuentra, usar la primera hoja con más datos
+        self.logger.info("Identificando hoja por contenido de datos")
         max_cells = 0
         main_sheet = None
+        sheet_analysis = {}
         
         for sheet_name, df in sheets.items():
             non_null_cells = df.count().sum()
+            total_cells = df.size
+            sheet_analysis[sheet_name] = {
+                'non_null_cells': int(non_null_cells),
+                'total_cells': int(total_cells),
+                'fill_ratio': round(non_null_cells / total_cells * 100, 2) if total_cells > 0 else 0,
+                'shape': df.shape
+            }
+            
             if non_null_cells > max_cells:
                 max_cells = non_null_cells
                 main_sheet = df
-                
-        return main_sheet if main_sheet is not None else list(sheets.values())[0]
+        
+        log_data = {
+            'sheet_analysis': sheet_analysis,
+            'selected_sheet_cells': int(max_cells)
+        }
+        self.logger.info("Análisis de hojas completado", convert_numpy_types(log_data))
+        
+        result = main_sheet if main_sheet is not None else list(sheets.values())[0]
+        log_data = {
+            'selection_method': 'by_content' if main_sheet is not None else 'first_available',
+            'final_shape': result.shape if result is not None else None
+        }
+        self.logger.info("Hoja principal seleccionada", convert_numpy_types(log_data))
+        
+        return result
 
     def _extract_vehicle_info(self):
         """
-        Extrae información de vehículos
+        Extrae información de vehículos desde una base de datos tabular
         """
         if self.raw_data is None:
             return
             
         vehicles = []
-        current_vehicle = {}
         
-        # Buscar información de vehículos en todas las celdas
+        # Procesar cada fila como una inspección completa
         for i, row in self.raw_data.iterrows():
-            for j, cell in enumerate(row):
-                if pd.isna(cell):
-                    continue
+            vehicle = {}
+            
+            try:
+                # Columna 5: PLACA DEL VEHICULO
+                if 'PLACA DEL VEHICULO' in self.raw_data.columns:
+                    placa_raw = row['PLACA DEL VEHICULO']
+                    if not pd.isna(placa_raw):
+                        placa_normalizada = self.normalize_vehicle_code(str(placa_raw))
+                        vehicle['codigo'] = placa_normalizada
+                        vehicle['placa'] = placa_normalizada
+                        vehicle['codigo_original'] = str(placa_raw).strip()
+                
+                # Columna 6: KILOMETRAJE  
+                if 'KILOMETRAJE' in self.raw_data.columns:
+                    km_raw = row['KILOMETRAJE']
+                    if not pd.isna(km_raw):
+                        vehicle['kilometraje'] = float(km_raw) if isinstance(km_raw, (int, float)) else self._extract_number(str(km_raw))
+                
+                # Columna 1: Marca temporal (fecha de inspección)
+                if 'Marca temporal' in self.raw_data.columns:
+                    fecha_raw = row['Marca temporal']
+                    if not pd.isna(fecha_raw):
+                        vehicle['fecha_inspeccion'] = str(fecha_raw)[:10]  # Solo fecha YYYY-MM-DD
+                
+                # Columna 4: CAMPO/COORDINACIÓN
+                if 'CAMPO/COORDINACIÓN' in self.raw_data.columns:
+                    campo_raw = row['CAMPO/COORDINACIÓN']
+                    if not pd.isna(campo_raw):
+                        vehicle['campo'] = str(campo_raw).strip()
+                
+                # Generar ID único por vehículo y fecha
+                vehicle['id'] = f"VEH_{vehicle.get('placa', 'UNKNOWN')}_{i}"
+                
+                # Determinar estado basado en las verificaciones de la fila
+                vehicle['status_color'] = self._determine_vehicle_status_color_from_row(row)
+                
+                # Solo agregar si tiene al menos placa
+                if vehicle.get('codigo'):
+                    vehicles.append(vehicle)
                     
-                cell_str = str(cell).strip().lower()
-                
-                # Identificar placa/código de vehículo
-                if re.search(self.section_patterns['vehiculo'], cell_str):
-                    if j + 1 < len(row) and not pd.isna(row.iloc[j + 1]):
-                        raw_code = str(row.iloc[j + 1]).strip()
-                        # NORMALIZAR CÓDIGO DE VEHÍCULO
-                        normalized_code = self.normalize_vehicle_code(raw_code)
-                        current_vehicle['codigo'] = normalized_code
-                        current_vehicle['placa'] = normalized_code
-                        current_vehicle['codigo_original'] = raw_code  # Guardar original
-                
-                # Identificar kilometraje
-                elif re.search(self.section_patterns['kilometraje'], cell_str):
-                    if j + 1 < len(row) and not pd.isna(row.iloc[j + 1]):
-                        km_value = self._extract_number(str(row.iloc[j + 1]))
-                        if km_value:
-                            current_vehicle['kilometraje'] = km_value
-                
-                # Identificar nivel de combustible
-                elif re.search(self.section_patterns['combustible'], cell_str):
-                    if j + 1 < len(row) and not pd.isna(row.iloc[j + 1]):
-                        fuel_value = self._extract_number(str(row.iloc[j + 1]))
-                        if fuel_value:
-                            current_vehicle['combustible'] = fuel_value
-                
-                # Identificar estado general
-                elif re.search(self.section_patterns['estado'], cell_str):
-                    if j + 1 < len(row) and not pd.isna(row.iloc[j + 1]):
-                        current_vehicle['estado'] = str(row.iloc[j + 1]).strip()
-        
-        # Agregar fecha de inspección
-        current_vehicle['fecha_inspeccion'] = self._extract_inspection_date()
-        current_vehicle['id'] = f"VEH_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        current_vehicle['status_color'] = self._determine_vehicle_status_color(current_vehicle)
-        
-        if current_vehicle:
-            vehicles.append(current_vehicle)
+            except Exception as e:
+                self.logger.warning(f"Error procesando vehículo en fila {i}: {str(e)}")
+                continue
         
         self.processed_data['vehiculos'] = vehicles
 
     def _extract_driver_info(self):
         """
-        Extrae información de conductores
+        Extrae información de conductores desde una base de datos tabular
         """
         if self.raw_data is None:
             return
             
         drivers = []
-        current_driver = {}
         
-        # Buscar información de conductores
+        # Procesar cada fila como una inspección completa
         for i, row in self.raw_data.iterrows():
-            for j, cell in enumerate(row):
-                if pd.isna(cell):
-                    continue
+            driver = {}
+            
+            try:
+                # Columna 2: NOMBRE DE QUIEN REALIZA LA INSPECCIÓN
+                if 'NOMBRE DE QUIEN REALIZA LA INSPECCIÓN ' in self.raw_data.columns:
+                    nombre_raw = row['NOMBRE DE QUIEN REALIZA LA INSPECCIÓN ']
+                    if not pd.isna(nombre_raw):
+                        driver['nombre'] = self.normalize_name(str(nombre_raw))
+                        driver['nombre_original'] = str(nombre_raw).strip()
+                
+                # Columna 1: Marca temporal (fecha de inspección)
+                if 'Marca temporal' in self.raw_data.columns:
+                    fecha_raw = row['Marca temporal']
+                    if not pd.isna(fecha_raw):
+                        driver['fecha_inspeccion'] = str(fecha_raw)[:10]  # Solo fecha YYYY-MM-DD
+                
+                # Columna 7: TURNO
+                if 'TURNO' in self.raw_data.columns:
+                    turno_raw = row['TURNO']
+                    if not pd.isna(turno_raw):
+                        driver['turno'] = str(turno_raw).strip()
+                
+                # Columna 3: CONTRATO  
+                if 'CONTRATO' in self.raw_data.columns:
+                    contrato_raw = row['CONTRATO']
+                    if not pd.isna(contrato_raw):
+                        driver['contrato'] = str(contrato_raw).strip()
+                
+                # Calcular días desde inspección
+                if driver.get('fecha_inspeccion'):
+                    driver['dias_desde_inspeccion'] = self._calculate_days_since_inspection(driver['fecha_inspeccion'])
+                
+                # Extraer respuestas de fatiga (últimas 4 columnas)
+                fatiga_cols = [col for col in self.raw_data.columns if 'hora' in col.lower() or 'fatiga' in col.lower() or 'síntoma' in col.lower() or 'condiciones' in col.lower() or 'medicamento' in col.lower()]
+                
+                for col in fatiga_cols[-4:]:  # Últimas 4 columnas relacionadas con fatiga
+                    if col in row and not pd.isna(row[col]):
+                        cell_value = row[col]
+                        # Conversión robusta a string
+                        if isinstance(cell_value, (int, float)):
+                            response = str(cell_value).strip().lower()
+                        elif isinstance(cell_value, str):
+                            response = cell_value.strip().lower()
+                        else:
+                            response = str(cell_value).strip().lower()
+                            
+                        if 'hora' in col.lower():
+                            if 'si' in response or 'sí' in response:
+                                driver['horas_suficientes'] = 'si'
+                            else:
+                                driver['horas_suficientes'] = 'no'
+                        elif 'fatiga' in col.lower() or 'síntoma' in col.lower():
+                            driver['libre_fatiga'] = self.normalize_yes_no_response(response)
+                        elif 'condiciones' in col.lower():
+                            driver['condiciones_optimas'] = self.normalize_yes_no_response(response)
+                        elif 'medicamento' in col.lower():
+                            driver['medicamentos'] = self.normalize_yes_no_response(response)
+                
+                # Generar ID único por conductor y fecha
+                driver['id'] = f"COND_{driver.get('nombre', 'UNKNOWN').replace(' ', '_')}_{i}"
+                
+                # Determinar estado de fatiga basado en respuestas
+                driver['nivel_fatiga'] = self._determine_fatigue_level(driver)
+                driver['status_color'] = self._determine_driver_status_color(driver)
+                
+                # Solo agregar si tiene nombre
+                if driver.get('nombre'):
+                    drivers.append(driver)
                     
-                cell_str = str(cell).strip().lower()
-                
-                # Identificar nombre del conductor
-                if re.search(self.section_patterns['conductor'], cell_str):
-                    if j + 1 < len(row) and not pd.isna(row.iloc[j + 1]):
-                        raw_name = str(row.iloc[j + 1]).strip()
-                        # NORMALIZAR NOMBRE
-                        current_driver['nombre'] = self.normalize_name(raw_name)
-                        current_driver['nombre_original'] = raw_name  # Guardar original para auditoría
-                        current_driver['id'] = f"COND_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                
-                # Identificar hora de inicio/fin
-                elif re.search(self.section_patterns['hora'], cell_str):
-                    if j + 1 < len(row) and not pd.isna(row.iloc[j + 1]):
-                        raw_time = str(row.iloc[j + 1]).strip()
-                        # NORMALIZAR TIEMPO
-                        normalized_time = self.normalize_time_format(raw_time)
-                        if 'inicio' in cell_str or 'entrada' in cell_str:
-                            current_driver['hora_inicio'] = normalized_time
-                            current_driver['hora_inicio_original'] = raw_time
-                        elif 'fin' in cell_str or 'salida' in cell_str:
-                            current_driver['hora_fin'] = normalized_time
-                            current_driver['hora_fin_original'] = raw_time
-        
-        # Obtener fecha de inspección primero
-        current_driver['fecha_inspeccion'] = self._extract_inspection_date()
-        current_driver['dias_desde_inspeccion'] = self._calculate_days_since_inspection(current_driver['fecha_inspeccion'])
-        
-        # Calcular horas trabajadas y fatiga
-        if 'hora_inicio' in current_driver and 'hora_fin' in current_driver:
-            horas_trabajadas = self._calculate_work_hours(
-                current_driver['hora_inicio'], 
-                current_driver['hora_fin']
-            )
-            current_driver['horas_trabajadas'] = horas_trabajadas
-            current_driver['nivel_fatiga'] = self._calculate_fatigue_level(horas_trabajadas)
-        
-        # Determinar estado basado en días desde inspección
-        current_driver['status_color'] = self._determine_driver_status_color(current_driver)
-        
-        if current_driver:
-            drivers.append(current_driver)
+            except Exception as e:
+                self.logger.warning(f"Error procesando conductor en fila {i}: {str(e)}")
+                continue
         
         self.processed_data['conductores'] = drivers
 
+    def _determine_vehicle_status_color_from_row(self, row):
+        """
+        Determina el color de estado del vehículo basado en las verificaciones de la fila
+        """
+        # Buscar columnas que indiquen problemas (solo buscar en nombres de columnas, no en valores)
+        problema_cols = [col for col in self.raw_data.columns if '**' in col or 'CUMPLE' in col.upper()]
+        
+        no_cumple_count = 0
+        total_checks = 0
+        
+        for col in problema_cols:
+            if col in row and not pd.isna(row[col]):
+                total_checks += 1
+                cell_value = row[col]
+                # Asegurar conversión segura a string
+                if isinstance(cell_value, (int, float)):
+                    response = str(cell_value).strip().upper()
+                elif isinstance(cell_value, str):
+                    response = cell_value.strip().upper()
+                else:
+                    response = str(cell_value).strip().upper()
+                    
+                if 'NO CUMPLE' in response or 'NO' in response:
+                    no_cumple_count += 1
+        
+        if total_checks == 0:
+            return 'amarillo'  # Sin datos suficientes
+        
+        failure_rate = no_cumple_count / total_checks
+        
+        if failure_rate == 0:
+            return 'verde'  # Todo cumple
+        elif failure_rate <= 0.2:  # Hasta 20% de fallas
+            return 'amarillo'  # Alerta
+        else:
+            return 'rojo'  # Crítico
+
+    def _determine_fatigue_level(self, driver):
+        """
+        Determina el nivel de fatiga del conductor basado en sus respuestas
+        """
+        fatiga_score = 0
+        
+        # Evaluar cada factor de fatiga
+        if driver.get('horas_suficientes') == 'no':
+            fatiga_score += 3
+        
+        if driver.get('libre_fatiga') == 'no':
+            fatiga_score += 2
+            
+        if driver.get('condiciones_optimas') == 'no':
+            fatiga_score += 2
+            
+        if driver.get('medicamentos') == 'si':
+            fatiga_score += 1
+        
+        # Clasificar nivel
+        if fatiga_score == 0:
+            return 'normal'
+        elif fatiga_score <= 2:
+            return 'alerta'
+        elif fatiga_score <= 4:
+            return 'alto'
+        else:
+            return 'critico'
+
     def _extract_mechanical_failures(self):
         """
-        Extrae y categoriza fallas mecánicas
+        Extrae y categoriza fallas mecánicas desde una base de datos tabular
         """
         if self.raw_data is None:
             return
             
         failures = []
         
-        # Buscar fallas en todas las celdas
+        # Procesar cada fila como una inspección completa
         for i, row in self.raw_data.iterrows():
-            for j, cell in enumerate(row):
-                if pd.isna(cell):
-                    continue
-                    
-                cell_str = str(cell).strip().lower()
+            try:
+                # Obtener info básica de la inspección
+                placa = row.get('PLACA DEL VEHICULO', 'UNKNOWN')
+                fecha = str(row.get('Marca temporal', ''))[:10] if not pd.isna(row.get('Marca temporal')) else ''
+                inspector = row.get('NOMBRE DE QUIEN REALIZA LA INSPECCIÓN ', 'UNKNOWN')
                 
-                # Buscar indicadores de fallas
-                if re.search(self.section_patterns['fallas'], cell_str):
-                    # Buscar descripción de la falla en celdas adyacentes
-                    failure_description = self._extract_failure_description(row, j)
-                    
-                    if failure_description:
-                        # NORMALIZAR DESCRIPCIÓN DE FALLA
-                        normalized_description = self.normalize_failure_description(failure_description)
-                        
-                        failure = {
-                            'id': f"FALLA_{len(failures) + 1}_{datetime.now().strftime('%H%M%S')}",
-                            'descripcion': normalized_description,
-                            'descripcion_original': failure_description,  # Guardar original
-                            'categoria': self._categorize_failure(normalized_description),
-                            'severidad': self._determine_severity(normalized_description),
-                            'ubicacion_fila': i,
-                            'ubicacion_columna': j,
-                            'fecha_reporte': self.normalize_date_format(self._extract_inspection_date()),
-                            'status_color': self._determine_failure_status_color(normalized_description)
-                        }
-                        failures.append(failure)
+                # Revisar todas las columnas de verificación (las que tienen **)
+                for col_name in self.raw_data.columns:
+                    if '**' in col_name:  # Columnas críticas
+                        cell_value = row[col_name]
+                        if not pd.isna(cell_value):
+                            # Asegurar que el valor sea string antes de procesarlo
+                            if isinstance(cell_value, (int, float)):
+                                response = str(cell_value).strip().upper()
+                            elif isinstance(cell_value, str):
+                                response = cell_value.strip().upper()
+                            else:
+                                response = str(cell_value).strip().upper()
+                            
+                            # Si hay una falla (NO CUMPLE)
+                            if 'NO CUMPLE' in response or response == 'NO':
+                                # Extraer descripción de observaciones si existe
+                                observaciones = ''
+                                if 'OBSERVACIONES' in self.raw_data.columns:
+                                    obs = row['OBSERVACIONES']
+                                    if not pd.isna(obs):
+                                        observaciones = str(obs).strip()
+                                
+                                # Crear descripción de la falla
+                                descripcion_base = col_name.replace('**', '').strip()
+                                descripcion_completa = f"{descripcion_base}"
+                                if observaciones:
+                                    descripcion_completa += f" - {observaciones}"
+                                
+                                # NORMALIZAR DESCRIPCIÓN DE FALLA
+                                normalized_description = self.normalize_failure_description(descripcion_completa)
+                                
+                                failure = {
+                                    'id': f"FALLA_{len(failures) + 1}_{i}",
+                                    'descripcion': normalized_description,
+                                    'descripcion_original': descripcion_completa,
+                                    'categoria': self._categorize_failure(normalized_description),
+                                    'severidad': 'critico' if '**' in col_name else 'medio',  # ** indica crítico
+                                    'vehiculo_placa': placa,
+                                    'inspector': inspector,
+                                    'fecha_reporte': fecha,
+                                    'columna_origen': col_name,
+                                    'fila_origen': i,
+                                    'status_color': self._determine_failure_status_color(normalized_description)
+                                }
+                                failures.append(failure)
+                                
+            except Exception as e:
+                # Logging más detallado para debugging
+                try:
+                    row_info = f"Fila {i}, Placa: {row.get('PLACA DEL VEHICULO', 'N/A')}"
+                    self.logger.warning(f"Error procesando fallas en {row_info}: {str(e)}")
+                    # Logging simplificado para evitar errores con tipos de datos
+                    critical_cols = [col for col in row.index if '**' in str(col)]
+                    self.logger.debug(f"Columnas críticas en fila {i}: {critical_cols}")
+                except Exception as log_error:
+                    self.logger.warning(f"Error procesando fallas en fila {i}: {str(e)} (Error adicional en logging: {str(log_error)})")
+                continue
         
         self.processed_data['fallas_mecanicas'] = failures
 
@@ -609,13 +953,19 @@ class HQFOAnalyzer:
         """
         Categoriza la falla mecánica
         """
+        # Validar que description sea una cadena de texto
+        if not isinstance(description, str):
+            description = str(description) if description is not None else ""
+        
         description_lower = description.lower()
         
         for category, keywords in self.failure_categories.items():
             if category == 'otros':
                 continue
             for keyword in keywords:
-                if keyword in description_lower:
+                # Asegurar que keyword también sea string
+                keyword_str = str(keyword) if keyword is not None else ""
+                if keyword_str and keyword_str in description_lower:
                     return category
         
         return 'otros'
@@ -624,11 +974,17 @@ class HQFOAnalyzer:
         """
         Determina el nivel de severidad de la falla
         """
+        # Validar que description sea una cadena de texto
+        if not isinstance(description, str):
+            description = str(description) if description is not None else ""
+            
         description_lower = description.lower()
         
         for severity, keywords in self.severity_levels.items():
             for keyword in keywords:
-                if keyword in description_lower:
+                # Asegurar que keyword también sea string
+                keyword_str = str(keyword) if keyword is not None else ""
+                if keyword_str and keyword_str in description_lower:
                     return severity
         
         return 'medio'  # Valor por defecto
@@ -639,19 +995,49 @@ class HQFOAnalyzer:
         """
         fatigue_analysis = []
         
-        # Buscar las preguntas de fatiga en el Excel
-        fatigue_questions = self._find_fatigue_questions()
+        if self.raw_data is None:
+            self.processed_data['control_fatiga'] = fatigue_analysis
+            return
         
-        for driver in self.processed_data['conductores']:
+        # Columnas específicas de fatiga en el Excel tabular
+        fatigue_columns = {
+            'horas_sueno': '¿Ha dormido al menos 7 horas en las últimas 24 horas?',
+            'sintomas_fatiga': '¿Se encuentra libre de síntomas de fatiga (Somnolencia, dolor de cabeza, irritabilidad)?',
+            'condiciones_fisicas': '¿Se siente en condiciones físicas y mentales para conducir?',
+            'medicamentos': '¿Ha consumido medicamentos o sustancias que afecten su estado de alerta?*'
+        }
+        
+        # Verificar que las columnas existen y ajustar nombres si es necesario
+        column_mapping = {}
+        for col_key, expected_col in fatigue_columns.items():
+            found = False
+            for actual_col in self.raw_data.columns:
+                actual_col_clean = str(actual_col).strip()
+                if expected_col.strip() in actual_col_clean or actual_col_clean in expected_col.strip():
+                    column_mapping[col_key] = actual_col
+                    found = True
+                    break
+            if not found:
+                self.logger.warning(f"Columna de fatiga no encontrada: {expected_col}")
+        
+        # Procesar cada fila como un conductor
+        for index, row in self.raw_data.iterrows():
+            conductor_name = row.get('NOMBRE DE QUIEN REALIZA LA INSPECCIÓN', f'Conductor_{index}')
+            if pd.isna(conductor_name) or not str(conductor_name).strip():
+                continue
+                
+            conductor_name = str(conductor_name).strip()
+            
+            # Extraer respuestas de fatiga directamente de las columnas
+            fatigue_responses = self._extract_fatigue_responses_direct(row, column_mapping)
+            
             driver_fatigue = {
-                'conductor_id': driver['id'],
-                'conductor_nombre': driver['nombre'],
-                'horas_trabajadas': driver.get('horas_trabajadas', 0),
-                'fecha_analisis': datetime.now().isoformat()
+                'conductor_id': f'driver_{index}',
+                'conductor_nombre': self._normalize_name(conductor_name),
+                'horas_trabajadas': 0,  # No disponible en este formato
+                'fecha_analisis': self._get_row_date(row)
             }
             
-            # Evaluar respuestas a preguntas específicas
-            fatigue_responses = self._evaluate_fatigue_responses(driver['id'], fatigue_questions)
             driver_fatigue.update(fatigue_responses)
             
             # Calcular nivel de fatiga basado en las 4 preguntas
@@ -659,9 +1045,19 @@ class HQFOAnalyzer:
             driver_fatigue['recomendacion'] = self._get_fatigue_recommendation(driver_fatigue['nivel_fatiga'])
             driver_fatigue['status_color'] = self._get_fatigue_status_color(driver_fatigue['nivel_fatiga'])
             
+            # Log detallado para primeros conductores
+            if len(fatigue_analysis) < 3:
+                self.logger.info(f"Análisis fatiga conductor {conductor_name}:", {
+                    'puntuacion': fatigue_responses.get('puntuacion_fatiga', 0),
+                    'nivel_fatiga': driver_fatigue['nivel_fatiga'],
+                    'respuestas': fatigue_responses,
+                    'columnas_encontradas': list(column_mapping.keys())
+                })
+            
             fatigue_analysis.append(driver_fatigue)
         
         self.processed_data['control_fatiga'] = fatigue_analysis
+        self.logger.info(f"Análisis de fatiga completado para {len(fatigue_analysis)} conductores")
 
     def _find_fatigue_questions(self) -> Dict:
         """
@@ -690,9 +1086,93 @@ class HQFOAnalyzer:
         
         return questions_found
 
+    def _extract_fatigue_responses_direct(self, row: pd.Series, column_mapping: Dict) -> Dict:
+        """
+        Extrae las respuestas de fatiga directamente de las columnas del Excel
+        """
+        responses = {
+            'dormir_7_horas': None,
+            'libre_sintomas_fatiga': None,
+            'condiciones_conducir': None,
+            'sin_medicamentos': None,
+            'puntuacion_fatiga': 0
+        }
+        
+        # Mapeo de columnas a respuestas
+        col_to_response = {
+            'horas_sueno': 'dormir_7_horas',
+            'sintomas_fatiga': 'libre_sintomas_fatiga',
+            'condiciones_fisicas': 'condiciones_conducir',
+            'medicamentos': 'sin_medicamentos'
+        }
+        
+        # Extraer valores de las columnas
+        for col_key, actual_col in column_mapping.items():
+            if actual_col in row.index:
+                value = row[actual_col]
+                response_key = col_to_response.get(col_key)
+                if response_key:
+                    responses[response_key] = value
+        
+        # Calcular puntuación basada en valores específicos del Excel
+        score = 0
+        
+        # Para las primeras 3 preguntas: "Cumple" = 1 punto, "No cumple" = 0 puntos
+        for key in ['dormir_7_horas', 'libre_sintomas_fatiga', 'condiciones_conducir']:
+            value = responses.get(key)
+            if pd.notna(value):
+                value_str = str(value).strip()
+                # Manejo case-insensitive para "Cumple"
+                if value_str.lower() == 'cumple':
+                    score += 1
+                    self.logger.debug(f"Pregunta {key}: {value_str} = +1 punto")
+                else:
+                    self.logger.debug(f"Pregunta {key}: {value_str} = 0 puntos")
+        
+        # Para medicamentos: "No" = 1 punto (bueno), "Sí" = 0 puntos (malo)
+        medicamentos = responses.get('sin_medicamentos')
+        if pd.notna(medicamentos):
+            value_str = str(medicamentos).strip()
+            # "No" es bueno (sin medicamentos), "Sí" es malo (con medicamentos)
+            if value_str.lower() == 'no':
+                score += 1
+                self.logger.debug(f"Medicamentos: {value_str} = +1 punto (sin medicamentos)")
+            else:
+                self.logger.debug(f"Medicamentos: {value_str} = 0 puntos (con medicamentos)")
+        
+        responses['puntuacion_fatiga'] = score
+        return responses
+    
+    def _get_row_date(self, row: pd.Series) -> str:
+        """
+        Extrae la fecha de la fila
+        """
+        if 'Marca temporal' in row.index and pd.notna(row['Marca temporal']):
+            try:
+                date_val = row['Marca temporal']
+                if hasattr(date_val, 'strftime'):
+                    return date_val.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    return str(date_val)
+            except:
+                pass
+        return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+    def _get_fatigue_recommendation(self, fatigue_level: str) -> str:
+        """
+        Obtiene recomendación basada en el nivel de fatiga
+        """
+        recommendations = {
+            'normal': 'Conductor en condiciones normales para operar',
+            'alerta': 'Revisar condiciones del conductor antes de operar',
+            'alto': 'Conductor requiere descanso antes de operar',
+            'critico': 'Prohibido operar - conductor en estado crítico de fatiga'
+        }
+        return recommendations.get(fatigue_level, 'Evaluar condiciones del conductor')
+
     def _evaluate_fatigue_responses(self, driver_id: str, questions: Dict) -> Dict:
         """
-        Evalúa las respuestas del conductor a las preguntas de fatiga
+        Evalúa las respuestas del conductor a las preguntas de fatiga (método legacy)
         """
         responses = {
             'dormir_7_horas': None,
@@ -719,11 +1199,18 @@ class HQFOAnalyzer:
         # Calcular puntuación (0-4, donde 4 es mejor)
         score = 0
         for key, value in responses.items():
-            if key != 'puntuacion_fatiga' and value in ['si', 'sí', 'yes', True]:
-                if key == 'sin_medicamentos':
-                    score += 1 if value in ['no', False] else 0  # Invertido para medicamentos
-                else:
-                    score += 1
+            if key != 'puntuacion_fatiga':
+                # Convertir value a string para hacer comparaciones seguras
+                value_str = str(value).lower().strip() if value is not None else ""
+                
+                # Verificar si es una respuesta positiva
+                if value_str in ['si', 'sí', 'yes', 'true', '1']:
+                    if key == 'sin_medicamentos':
+                        score += 0  # Para medicamentos, 'si' es negativo
+                    else:
+                        score += 1
+                elif key == 'sin_medicamentos' and value_str in ['no', 'false', '0']:
+                    score += 1  # Para medicamentos, 'no' es positivo
         
         responses['puntuacion_fatiga'] = score
         return responses
@@ -934,6 +1421,14 @@ class HQFOAnalyzer:
         Amarillo: fallas no tan críticas
         Rojo: fallas críticas, camión inutilizado requiere atención
         """
+        # Validar tipo y valores nulos
+        if description is None or pd.isna(description):
+            return 'verde'  # Sin fallas
+            
+        # Asegurar que sea string
+        if not isinstance(description, str):
+            description = str(description)
+            
         if not description or description.strip() == '':
             return 'verde'  # Sin fallas
         

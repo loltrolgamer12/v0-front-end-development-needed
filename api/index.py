@@ -13,17 +13,32 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import os
 import tempfile
+import time
 import io
 import base64
-from hqfo_analyzer import HQFOAnalyzer
 from typing import Dict, List
 import json
+
+# Importaciones locales - manejar tanto ejecución directa como módulo
+try:
+    from .hqfo_logger import get_logger
+    from .hqfo_analyzer import HQFOAnalyzer
+except ImportError:
+    # Ejecución directa
+    from hqfo_logger import get_logger
+    from hqfo_analyzer import HQFOAnalyzer
 
 app = Flask(__name__)
 CORS(app)
 
+# Inicializar sistema de logging
+logger = get_logger("API")
+logger.info("=== INICIANDO API HQ-FO-40 ===")
+logger.info(f"Entorno: {'Vercel' if os.environ.get('VERCEL') else 'Desarrollo'}")
+
 # Configuración para Vercel
-app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024  # 4MB máximo para serverless
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB máximo para archivos Excel reales
+logger.info(f"Límite de archivo configurado: {app.config['MAX_CONTENT_LENGTH'] / (1024*1024)}MB")
 
 # Handler para errores de tamaño de archivo
 @app.errorhandler(413)
@@ -36,10 +51,42 @@ def handle_file_too_large(e):
 
 # Base de datos temporal (memoria para Vercel, archivo para desarrollo)
 DATABASE = ':memory:' if os.environ.get('VERCEL') else 'hqfo_temp.db'
+logger.info(f"Base de datos configurada: {DATABASE}")
+
 analyzer = HQFOAnalyzer()
+logger.info("Analizador HQ-FO-40 inicializado exitosamente")
+
+def clear_analysis_data():
+    """Limpiar solo los datos de análisis - MANTENER HISTORIAL DE REPORTES"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        logger.info("Limpiando datos de análisis anteriores antes de cargar nuevo archivo")
+        
+        # Eliminar datos de análisis pero mantener estructura de tablas
+        cursor.execute("DELETE FROM conductores")
+        cursor.execute("DELETE FROM vehiculos") 
+        cursor.execute("DELETE FROM fallas_mecanicas")
+        cursor.execute("DELETE FROM control_fatiga")
+        # NO tocamos la tabla de reportes
+        
+        conn.commit()
+        conn.close()
+        
+        # También limpiar el reporte de normalización en memoria
+        if hasattr(analyzer, 'last_normalization_report'):
+            delattr(analyzer, 'last_normalization_report')
+        
+        logger.info("Datos de análisis anteriores limpiados correctamente - historial de reportes preservado")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error limpiando datos de análisis: {str(e)}")
+        return False
 
 def init_db():
-    """Inicializar base de datos temporal"""
+    """Inicializar base de datos temporal - Solo crea las tablas si no existen"""
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     
@@ -121,12 +168,22 @@ def init_db():
 
 def save_to_db(data: Dict):
     """Guardar datos procesados en la base de datos"""
+    logger.log_function_entry("save_to_db", {
+        'data_keys': list(data.keys()) if data else [],
+        'conductores_count': len(data.get('conductores', [])) if data else 0,
+        'vehiculos_count': len(data.get('vehiculos', [])) if data else 0,
+        'fallas_count': len(data.get('fallas_mecanicas', [])) if data else 0
+    })
+    
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     
     try:
         # Guardar conductores
-        for conductor in data.get('conductores', []):
+        conductores = data.get('conductores', [])
+        logger.info(f"Guardando {len(conductores)} conductores en BD")
+        
+        for i, conductor in enumerate(conductores):
             cursor.execute('''
                 INSERT OR REPLACE INTO conductores 
                 (id, nombre, hora_inicio, hora_fin, horas_trabajadas, nivel_fatiga, status_color, fecha_inspeccion)
@@ -194,58 +251,313 @@ def save_to_db(data: Dict):
             ))
         
         conn.commit()
+        logger.info("Datos guardados exitosamente en base de datos")
         return True
         
     except Exception as e:
-        print(f"Error guardando en DB: {str(e)}")
+        logger.error("Error guardando datos en base de datos", e, {
+            'conductores_count': len(data.get('conductores', [])),
+            'vehiculos_count': len(data.get('vehiculos', [])),
+            'fallas_count': len(data.get('fallas_mecanicas', []))
+        })
         return False
     finally:
         conn.close()
+        logger.debug("Conexión a base de datos cerrada")
+
+def get_filtered_data_from_db(filters: Dict) -> Dict:
+    """
+    Obtiene datos filtrados directamente desde la base de datos
+    Reemplaza analyzer.get_filtered_data() para evitar re-procesar Excel
+    """
+    init_db()
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    
+    try:
+        filtered_data = {
+            'conductores': _filter_conductores_db(conn, filters),
+            'vehiculos': _filter_vehiculos_db(conn, filters),
+            'fallas_mecanicas': _filter_fallas_db(conn, filters),
+            'control_fatiga': _filter_fatiga_db(conn, filters)
+        }
+        
+        logger.debug("Datos filtrados obtenidos desde BD", {
+            'conductores_count': len(filtered_data['conductores']),
+            'vehiculos_count': len(filtered_data['vehiculos']),
+            'fallas_count': len(filtered_data['fallas_mecanicas']),
+            'fatiga_count': len(filtered_data['control_fatiga']),
+            'filters_applied': filters
+        })
+        
+        return filtered_data
+    
+    finally:
+        conn.close()
+
+def _filter_conductores_db(conn, filters: Dict) -> List:
+    """Filtra conductores desde BD"""
+    query = "SELECT * FROM conductores WHERE 1=1"
+    params = []
+    
+    if 'fatigue_level' in filters:
+        # Buscar en control_fatiga
+        query = """
+            SELECT c.* FROM conductores c 
+            LEFT JOIN control_fatiga cf ON c.id = cf.conductor_id 
+            WHERE cf.nivel_fatiga = ?
+        """
+        params.append(filters['fatigue_level'])
+    
+    if 'status_color' in filters:
+        query += " AND status_color = ?"
+        params.append(filters['status_color'])
+    
+    if 'search_term' in filters and filters['search_term']:
+        term = f"%{filters['search_term'].lower()}%"
+        query += " AND (LOWER(nombre_completo) LIKE ? OR LOWER(nombre_normalizado) LIKE ?)"
+        params.extend([term, term])
+    
+    cursor = conn.execute(query, params)
+    return [dict(row) for row in cursor.fetchall()]
+
+def _filter_vehiculos_db(conn, filters: Dict) -> List:
+    """Filtra vehículos desde BD"""
+    query = "SELECT * FROM vehiculos WHERE 1=1"
+    params = []
+    
+    if 'status_color' in filters:
+        query += " AND status_color = ?"
+        params.append(filters['status_color'])
+    
+    if 'min_km' in filters:
+        query += " AND kilometraje >= ?"
+        params.append(filters['min_km'])
+    
+    if 'max_km' in filters:
+        query += " AND kilometraje <= ?"
+        params.append(filters['max_km'])
+    
+    cursor = conn.execute(query, params)
+    return [dict(row) for row in cursor.fetchall()]
+
+def _filter_fallas_db(conn, filters: Dict) -> List:
+    """Filtra fallas mecánicas desde BD"""
+    query = "SELECT * FROM fallas_mecanicas WHERE 1=1"
+    params = []
+    
+    if 'category' in filters:
+        query += " AND categoria = ?"
+        params.append(filters['category'])
+    
+    if 'severity' in filters:
+        query += " AND severidad = ?"
+        params.append(filters['severity'])
+    
+    if 'search_term' in filters and filters['search_term']:
+        term = f"%{filters['search_term'].lower()}%"
+        query += " AND LOWER(descripcion) LIKE ?"
+        params.append(term)
+    
+    cursor = conn.execute(query, params)
+    return [dict(row) for row in cursor.fetchall()]
+
+def _filter_fatiga_db(conn, filters: Dict) -> List:
+    """Filtra control de fatiga desde BD"""
+    query = "SELECT * FROM control_fatiga WHERE 1=1"
+    params = []
+    
+    if 'fatigue_level' in filters:
+        query += " AND nivel_fatiga = ?"
+        params.append(filters['fatigue_level'])
+    
+    cursor = conn.execute(query, params)
+    return [dict(row) for row in cursor.fetchall()]
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     """Endpoint para subir y procesar archivo Excel"""
+    start_time = time.time()
+    logger.log_function_entry("upload_file", {
+        'files_in_request': list(request.files.keys()),
+        'content_length': request.content_length,
+        'method': request.method
+    })
+    
     try:
+        # Validar presencia del archivo
         if 'file' not in request.files:
+            logger.warning("No se encontró archivo en request", {
+                'files_present': list(request.files.keys()),
+                'form_data': dict(request.form)
+            })
             return jsonify({'error': 'No se encontró archivo'}), 400
         
         file = request.files['file']
+        logger.info(f"Archivo recibido en upload", {
+            'filename': file.filename,
+            'content_type': file.content_type,
+            'headers': dict(file.headers) if hasattr(file, 'headers') else {}
+        })
+        
+        # Validar nombre del archivo
         if file.filename == '':
+            logger.warning("Nombre de archivo vacío")
             return jsonify({'error': 'No se seleccionó archivo'}), 400
         
+        # Validar extensión
         if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            logger.warning("Formato de archivo no válido", {
+                'filename': file.filename,
+                'extension': file.filename.split('.')[-1] if '.' in file.filename else 'none'
+            })
             return jsonify({'error': 'Formato de archivo no válido. Use Excel (.xlsx/.xls)'}), 400
         
+        # *** LIMPIAR DATOS ANTERIORES ANTES DE PROCESAR NUEVO ARCHIVO ***
+        logger.info("Iniciando limpieza de datos anteriores antes de cargar nuevo archivo")
+        if not clear_analysis_data():
+            logger.error("Error limpiando datos anteriores")
+            return jsonify({'error': 'Error preparando sistema para nuevo archivo'}), 500
+        
         # Guardar archivo temporalmente
+        logger.info("Iniciando guardado de archivo temporal")
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
-            file.save(tmp_file.name)
+            temp_path = tmp_file.name
+            logger.debug(f"Archivo temporal creado: {temp_path}")
+            
+            # Guardar archivo
+            save_start = time.time()
+            file.save(temp_path)
+            save_duration = time.time() - save_start
+            
+            # Verificar archivo guardado
+            file_size = os.path.getsize(temp_path)
+            file_exists = os.path.exists(temp_path)
+            
+            logger.info("Archivo guardado en temporal", {
+                'temp_path': temp_path,
+                'file_size_bytes': file_size,
+                'file_size_mb': round(file_size / (1024*1024), 2),
+                'save_duration': round(save_duration, 4),
+                'file_exists': file_exists
+            })
+            
+            if file_size == 0:
+                logger.error("Archivo temporal está vacío", {
+                    'temp_path': temp_path,
+                    'original_filename': file.filename
+                })
+                os.unlink(temp_path)
+                return jsonify({'error': 'Archivo vacío o no se pudo guardar correctamente'}), 400
             
             # Procesar con el analizador
-            result = analyzer.analyze_excel(tmp_file.name)
+            logger.info("Iniciando análisis de Excel")
+            analysis_start = time.time()
             
-            # Eliminar archivo temporal
-            os.unlink(tmp_file.name)
+            result = analyzer.analyze_excel(temp_path)
+            
+            analysis_duration = time.time() - analysis_start
+            logger.info("Análisis de Excel completado", {
+                'success': result.get('success'),
+                'analysis_duration': round(analysis_duration, 4),
+                'error': result.get('error') if not result.get('success') else None
+            })
+            
+            # Eliminar archivo temporal - intentar múltiples veces si está bloqueado
+            cleanup_attempts = 0
+            max_cleanup_attempts = 3
+            while cleanup_attempts < max_cleanup_attempts:
+                try:
+                    time.sleep(0.1)  # Pequeña pausa para que se libere el archivo
+                    os.unlink(temp_path)
+                    logger.debug("Archivo temporal eliminado exitosamente")
+                    break
+                except PermissionError as perm_error:
+                    cleanup_attempts += 1
+                    if cleanup_attempts < max_cleanup_attempts:
+                        logger.debug(f"Intento {cleanup_attempts}: Archivo temporal aún en uso, reintentando...")
+                        time.sleep(0.5)  # Esperar más tiempo antes del siguiente intento
+                    else:
+                        logger.warning(f"No se pudo eliminar archivo temporal después de {max_cleanup_attempts} intentos", {
+                            'temp_path': temp_path,
+                            'error_msg': str(perm_error)
+                        })
+                except Exception as cleanup_error:
+                    logger.warning(f"Error eliminando archivo temporal: {str(cleanup_error)}", {
+                        'temp_path': temp_path,
+                        'error_type': type(cleanup_error).__name__,
+                        'error_msg': str(cleanup_error)
+                    })
+                    break
         
+        # Procesar resultado del análisis
         if result['success']:
+            logger.info("Procesando resultado exitoso del análisis")
+            
+            # Log resumen de datos extraídos
+            data = result.get('data', {})
+            logger.log_data_summary("extracted_data", data, {
+                'conductores_count': len(data.get('conductores', [])),
+                'vehiculos_count': len(data.get('vehiculos', [])),
+                'fallas_mecanicas_count': len(data.get('fallas_mecanicas', [])),
+                'control_fatiga_count': len(data.get('control_fatiga', []))
+            })
+            
             # Guardar en base de datos
-            save_to_db(result['data'])
+            logger.info("Guardando datos en base de datos")
+            db_start = time.time()
+            
+            save_to_db(data)
+            
+            db_duration = time.time() - db_start
+            logger.info("Datos guardados en base de datos", {
+                'db_save_duration': round(db_duration, 4)
+            })
             
             # Guardar reporte de normalización en memoria
             if 'normalization_report' in result:
                 analyzer.last_normalization_report = result['normalization_report']
+                logger.debug("Reporte de normalización guardado en memoria")
+            
+            total_duration = time.time() - start_time
+            logger.log_function_exit("upload_file", {
+                'success': True,
+                'total_duration': round(total_duration, 4),
+                'data_summary': {
+                    'conductores': len(data.get('conductores', [])),
+                    'vehiculos': len(data.get('vehiculos', [])),
+                    'fallas_mecanicas': len(data.get('fallas_mecanicas', []))
+                }
+            }, total_duration)
             
             return jsonify({
                 'success': True,
                 'message': 'Archivo procesado exitosamente',
                 'data': result['data'],
                 'summary': result['summary'],
-                'normalization_report': result.get('normalization_report', {})
+                'normalization_report': result.get('normalization_report', {}),
+                'processing_time': round(total_duration, 4)
             })
         else:
+            logger.error("Error en análisis de Excel", error=None, extra_data={
+                'analysis_error': result.get('error'),
+                'error_type': result.get('type'),
+                'traceback': result.get('traceback')
+            })
             return jsonify({'error': result['error']}), 500
             
     except Exception as e:
-        return jsonify({'error': f'Error procesando archivo: {str(e)}'}), 500
+        total_duration = time.time() - start_time
+        logger.critical("Excepción crítica en upload_file", e, {
+            'filename': getattr(file, 'filename', 'unknown') if 'file' in locals() else 'no_file',
+            'total_duration': round(total_duration, 4)
+        })
+        
+        return jsonify({
+            'error': f'Error procesando archivo: {str(e)}',
+            'type': type(e).__name__,
+            'processing_time': round(total_duration, 4)
+        }), 500
 
 @app.route('/api/search', methods=['GET'])
 def search_data():
@@ -269,8 +581,8 @@ def search_data():
         if request.args.get('max_km'):
             filters['max_km'] = float(request.args.get('max_km'))
         
-        # Obtener datos filtrados
-        filtered_data = analyzer.get_filtered_data(filters)
+        # Obtener datos filtrados DESDE LA BASE DE DATOS, no desde memoria
+        filtered_data = get_filtered_data_from_db(filters)
         
         return jsonify({
             'success': True,
@@ -844,13 +1156,30 @@ def get_drivers():
         conn = sqlite3.connect(DATABASE)
         cursor = conn.cursor()
         
-        # Obtener todos los conductores con información completa
-        cursor.execute('''
-            SELECT id, nombre, dias_desde_inspeccion, nivel_fatiga, status_color,
-                   fecha_inspeccion, horas_trabajadas
-            FROM conductores
-            ORDER BY dias_desde_inspeccion DESC
-        ''')
+        # Verificar si la tabla existe y obtener conductores
+        try:
+            cursor.execute('''
+                SELECT id, nombre, dias_desde_inspeccion, nivel_fatiga, status_color,
+                       fecha_inspeccion, horas_trabajadas
+                FROM conductores
+                ORDER BY dias_desde_inspeccion DESC
+            ''')
+        except sqlite3.OperationalError:
+            # Si la tabla no existe, retornar datos vacíos
+            conn.close()
+            return jsonify({
+                'success': True,
+                'data': {
+                    'conductores': [],
+                    'estadisticas': {
+                        'total': 0,
+                        'cumple': 0,
+                        'alerta': 0,
+                        'critico': 0,
+                        'porcentaje_cumplimiento': 0
+                    }
+                }
+            })
         
         rows = cursor.fetchall()
         drivers = []
@@ -973,11 +1302,171 @@ def get_driver_details(driver_id):
     except Exception as e:
         return jsonify({'error': f'Error obteniendo detalles del conductor: {str(e)}'}), 500
 
+# *** ENDPOINTS PARA NOTIFICACIONES CRÍTICAS ***
+
+@app.route('/api/vehiculos', methods=['GET'])
+def get_vehiculos():
+    """Obtener vehículos con filtros opcionales para notificaciones"""
+    try:
+        status_filter = request.args.get('status')
+        
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        if status_filter:
+            cursor.execute('''
+                SELECT id, codigo, placa, kilometraje, combustible, estado, status_color, fecha_inspeccion
+                FROM vehiculos 
+                WHERE status_color = ?
+                ORDER BY created_at DESC
+            ''', (status_filter,))
+        else:
+            cursor.execute('''
+                SELECT id, codigo, placa, kilometraje, combustible, estado, status_color, fecha_inspeccion
+                FROM vehiculos 
+                ORDER BY created_at DESC
+            ''')
+        
+        vehiculos_data = cursor.fetchall()
+        conn.close()
+        
+        vehiculos = [
+            {
+                'id': row[0],
+                'codigo': row[1],
+                'placa': row[2],
+                'kilometraje': row[3],
+                'combustible': row[4],
+                'estado': row[5],
+                'status_color': row[6],
+                'fecha_inspeccion': row[7]
+            } for row in vehiculos_data
+        ]
+        
+        return jsonify({
+            'success': True,
+            'vehiculos': vehiculos,
+            'total': len(vehiculos)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error obteniendo vehículos: {str(e)}'}), 500
+
+@app.route('/api/conductores', methods=['GET'])
+def get_conductores():
+    """Obtener conductores con filtros opcionales para notificaciones"""
+    try:
+        fatiga_filter = request.args.get('fatiga')
+        
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        if fatiga_filter:
+            # Filtrar por múltiples niveles de fatiga (ej: "critico,alto")
+            niveles = [nivel.strip() for nivel in fatiga_filter.split(',')]
+            placeholders = ','.join('?' * len(niveles))
+            cursor.execute(f'''
+                SELECT id, nombre, hora_inicio, hora_fin, horas_trabajadas, nivel_fatiga, status_color, fecha_inspeccion
+                FROM conductores 
+                WHERE nivel_fatiga IN ({placeholders})
+                ORDER BY created_at DESC
+            ''', niveles)
+        else:
+            cursor.execute('''
+                SELECT id, nombre, hora_inicio, hora_fin, horas_trabajadas, nivel_fatiga, status_color, fecha_inspeccion
+                FROM conductores 
+                ORDER BY created_at DESC
+            ''')
+        
+        conductores_data = cursor.fetchall()
+        conn.close()
+        
+        conductores = [
+            {
+                'id': row[0],
+                'nombre': row[1],
+                'hora_inicio': row[2],
+                'hora_fin': row[3],
+                'horas_trabajadas': row[4],
+                'nivel_fatiga': row[5],
+                'status_color': row[6],
+                'fecha_inspeccion': row[7]
+            } for row in conductores_data
+        ]
+        
+        return jsonify({
+            'success': True,
+            'conductores': conductores,
+            'total': len(conductores)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error obteniendo conductores: {str(e)}'}), 500
+
+@app.route('/api/fallas', methods=['GET'])
+def get_fallas():
+    """Obtener fallas mecánicas con filtros opcionales para notificaciones"""
+    try:
+        severidad_filter = request.args.get('severidad')
+        
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        if severidad_filter:
+            cursor.execute('''
+                SELECT id, descripcion, categoria, severidad, ubicacion_fila, ubicacion_columna, status_color, fecha_reporte
+                FROM fallas_mecanicas 
+                WHERE severidad = ?
+                ORDER BY created_at DESC
+            ''', (severidad_filter,))
+        else:
+            cursor.execute('''
+                SELECT id, descripcion, categoria, severidad, ubicacion_fila, ubicacion_columna, status_color, fecha_reporte
+                FROM fallas_mecanicas 
+                ORDER BY created_at DESC
+            ''')
+        
+        fallas_data = cursor.fetchall()
+        conn.close()
+        
+        fallas = [
+            {
+                'id': row[0],
+                'descripcion': row[1],
+                'categoria': row[2],
+                'severidad': row[3],
+                'ubicacion_fila': row[4],
+                'ubicacion_columna': row[5],
+                'status_color': row[6],
+                'fecha_reporte': row[7]
+            } for row in fallas_data
+        ]
+        
+        return jsonify({
+            'success': True,
+            'fallas': fallas,
+            'total': len(fallas)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error obteniendo fallas: {str(e)}'}), 500
+
 # Inicializar DB para Vercel
-init_db()
+try:
+    logger.info("Inicializando base de datos...")
+    init_db()
+    logger.info("Base de datos inicializada correctamente")
+except Exception as e:
+    logger.critical("Error inicializando base de datos", e)
+    raise
 
 # Para Vercel, el app object es el handler
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    debug_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEBUG', 'False').lower() == 'true'
-    app.run(debug=debug_mode, host='0.0.0.0', port=port)
+    try:
+        port = int(os.environ.get('PORT', 5000))
+        debug_mode = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEBUG', 'False').lower() == 'true'
+        logger.info(f"Iniciando servidor Flask en puerto {port}, debug={debug_mode}")
+        app.run(debug=debug_mode, host='0.0.0.0', port=port)
+    except Exception as e:
+        logger.critical("Error crítico durante inicialización del servidor", e)
+        raise
