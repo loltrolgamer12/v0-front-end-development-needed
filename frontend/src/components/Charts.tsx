@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import './Charts.css';
 
 interface ChartData {
@@ -20,7 +20,7 @@ const Charts: React.FC<ChartsProps> = ({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [activeChart, setActiveChart] = useState<string>('estado_vehiculos');
 
-  const chartTypes = [
+  const chartTypes = useMemo(() => [
     {
       id: 'estado_vehiculos',
       title: 'Estado de Vehículos',
@@ -45,7 +45,7 @@ const Charts: React.FC<ChartsProps> = ({
       icon: '⚠️',
       description: 'Niveles de severidad de las fallas detectadas'
     }
-  ];
+  ], []);
 
   const fetchChart = async (chartType: string) => {
     setLoading(prev => ({ ...prev, [chartType]: true }));
