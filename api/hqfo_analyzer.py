@@ -33,6 +33,14 @@ class HQFOAnalyzer:
             'estado': r'(?i)(estado|condición|status)'
         }
         
+        # Patrones específicos para preguntas de fatiga HQ-FO-40
+        self.fatigue_patterns = {
+            'horas_sueno': r'(?i)(dormido.*7.*horas|ha dormido al menos 7|descansado.*7.*horas|sueño.*7.*horas)',
+            'sintomas_fatiga': r'(?i)(síntomas.*fatiga|somnolencia.*dolor|libre.*fatiga|irritabilidad|cansancio)',
+            'condiciones_fisicas': r'(?i)(condiciones.*físicas.*mentales|apto.*conducir|estado.*físico|capacidad.*conducir)',
+            'medicamentos': r'(?i)(medicamentos.*sustancias|consumido.*medicamentos|sustancias.*alerta|drogas.*alcohol)'
+        }
+        
         # Categorías de fallas mecánicas
         self.failure_categories = {
             'motor': ['motor', 'aceite', 'refrigerante', 'correa', 'filtro'],
@@ -201,6 +209,10 @@ class HQFOAnalyzer:
                         elif 'fin' in cell_str or 'salida' in cell_str:
                             current_driver['hora_fin'] = time_value
         
+        # Obtener fecha de inspección primero
+        current_driver['fecha_inspeccion'] = self._extract_inspection_date()
+        current_driver['dias_desde_inspeccion'] = self._calculate_days_since_inspection(current_driver['fecha_inspeccion'])
+        
         # Calcular horas trabajadas y fatiga
         if 'hora_inicio' in current_driver and 'hora_fin' in current_driver:
             horas_trabajadas = self._calculate_work_hours(
@@ -209,9 +221,9 @@ class HQFOAnalyzer:
             )
             current_driver['horas_trabajadas'] = horas_trabajadas
             current_driver['nivel_fatiga'] = self._calculate_fatigue_level(horas_trabajadas)
-            current_driver['status_color'] = self._determine_driver_status_color(current_driver)
         
-        current_driver['fecha_inspeccion'] = self._extract_inspection_date()
+        # Determinar estado basado en días desde inspección
+        current_driver['status_color'] = self._determine_driver_status_color(current_driver)
         
         if current_driver:
             drivers.append(current_driver)
@@ -300,24 +312,160 @@ class HQFOAnalyzer:
 
     def _analyze_fatigue_control(self):
         """
-        Analiza el control de fatiga de conductores
+        Analiza el control de fatiga de conductores basado en preguntas específicas HQ-FO-40
         """
         fatigue_analysis = []
         
+        # Buscar las preguntas de fatiga en el Excel
+        fatigue_questions = self._find_fatigue_questions()
+        
         for driver in self.processed_data['conductores']:
-            if 'horas_trabajadas' in driver:
-                fatigue_record = {
-                    'conductor_id': driver['id'],
-                    'conductor_nombre': driver['nombre'],
-                    'horas_trabajadas': driver['horas_trabajadas'],
-                    'nivel_fatiga': driver['nivel_fatiga'],
-                    'recomendacion': self._get_fatigue_recommendation(driver['nivel_fatiga']),
-                    'fecha_analisis': datetime.now().isoformat(),
-                    'status_color': driver['status_color']
-                }
-                fatigue_analysis.append(fatigue_record)
+            driver_fatigue = {
+                'conductor_id': driver['id'],
+                'conductor_nombre': driver['nombre'],
+                'horas_trabajadas': driver.get('horas_trabajadas', 0),
+                'fecha_analisis': datetime.now().isoformat()
+            }
+            
+            # Evaluar respuestas a preguntas específicas
+            fatigue_responses = self._evaluate_fatigue_responses(driver['id'], fatigue_questions)
+            driver_fatigue.update(fatigue_responses)
+            
+            # Calcular nivel de fatiga basado en las 4 preguntas
+            driver_fatigue['nivel_fatiga'] = self._calculate_comprehensive_fatigue_level(fatigue_responses)
+            driver_fatigue['recomendacion'] = self._get_fatigue_recommendation(driver_fatigue['nivel_fatiga'])
+            driver_fatigue['status_color'] = self._get_fatigue_status_color(driver_fatigue['nivel_fatiga'])
+            
+            fatigue_analysis.append(driver_fatigue)
         
         self.processed_data['control_fatiga'] = fatigue_analysis
+
+    def _find_fatigue_questions(self) -> Dict:
+        """
+        Busca las preguntas específicas de fatiga en el Excel
+        """
+        questions_found = {}
+        
+        if self.raw_data is None:
+            return questions_found
+            
+        # Buscar cada pregunta específica
+        for question_key, pattern in self.fatigue_patterns.items():
+            questions_found[question_key] = []
+            
+            # Buscar en todas las celdas
+            for row_idx, row in self.raw_data.iterrows():
+                for col_idx, cell_value in enumerate(row):
+                    if pd.notna(cell_value):
+                        cell_str = str(cell_value).strip()
+                        if re.search(pattern, cell_str):
+                            questions_found[question_key].append({
+                                'row': row_idx,
+                                'col': col_idx,
+                                'text': cell_str
+                            })
+        
+        return questions_found
+
+    def _evaluate_fatigue_responses(self, driver_id: str, questions: Dict) -> Dict:
+        """
+        Evalúa las respuestas del conductor a las preguntas de fatiga
+        """
+        responses = {
+            'dormir_7_horas': None,
+            'libre_sintomas_fatiga': None,
+            'condiciones_conducir': None,
+            'sin_medicamentos': None,
+            'puntuacion_fatiga': 0
+        }
+        
+        # Buscar respuestas cerca de las preguntas encontradas
+        for question_type, question_locations in questions.items():
+            for location in question_locations:
+                response = self._find_response_near_question(location, driver_id)
+                
+                if question_type == 'horas_sueno':
+                    responses['dormir_7_horas'] = response
+                elif question_type == 'sintomas_fatiga':
+                    responses['libre_sintomas_fatiga'] = response  
+                elif question_type == 'condiciones_fisicas':
+                    responses['condiciones_conducir'] = response
+                elif question_type == 'medicamentos':
+                    responses['sin_medicamentos'] = response
+        
+        # Calcular puntuación (0-4, donde 4 es mejor)
+        score = 0
+        for key, value in responses.items():
+            if key != 'puntuacion_fatiga' and value in ['si', 'sí', 'yes', True]:
+                if key == 'sin_medicamentos':
+                    score += 1 if value in ['no', False] else 0  # Invertido para medicamentos
+                else:
+                    score += 1
+        
+        responses['puntuacion_fatiga'] = score
+        return responses
+
+    def _find_response_near_question(self, question_location: Dict, driver_id: str) -> Optional[str]:
+        """
+        Busca la respuesta cerca de una pregunta específica
+        """
+        if self.raw_data is None:
+            return None
+            
+        row = question_location['row']
+        col = question_location['col']
+        
+        # Buscar en celdas adyacentes (derecha, abajo, diagonal)
+        search_offsets = [(0, 1), (0, 2), (1, 0), (1, 1), (2, 0), (0, 3)]
+        
+        for row_offset, col_offset in search_offsets:
+            try:
+                target_row = row + row_offset
+                target_col = col + col_offset
+                
+                if target_row < len(self.raw_data) and target_col < len(self.raw_data.columns):
+                    response = self.raw_data.iloc[target_row, target_col]
+                    
+                    if pd.notna(response):
+                        response_str = str(response).strip().lower()
+                        
+                        # Detectar respuestas positivas/negativas
+                        if any(word in response_str for word in ['sí', 'si', 'yes', 'true', '✓', 'x']):
+                            return 'si'
+                        elif any(word in response_str for word in ['no', 'false', '✗']):
+                            return 'no'
+                            
+            except (IndexError, KeyError):
+                continue
+        
+        return None
+
+    def _calculate_comprehensive_fatigue_level(self, responses: Dict) -> str:
+        """
+        Calcula el nivel de fatiga basado en las 4 preguntas específicas
+        """
+        score = responses.get('puntuacion_fatiga', 0)
+        
+        if score >= 4:
+            return 'normal'  # Verde: Todas las respuestas correctas
+        elif score >= 3:
+            return 'alerta'  # Amarillo: Una respuesta problemática  
+        elif score >= 2:
+            return 'alto'    # Naranja: Dos respuestas problemáticas
+        else:
+            return 'critico' # Rojo: Múltiples problemas de fatiga
+
+    def _get_fatigue_status_color(self, fatigue_level: str) -> str:
+        """
+        Obtiene el color de estado según el nivel de fatiga
+        """
+        color_map = {
+            'normal': 'verde',
+            'alerta': 'amarillo', 
+            'alto': 'naranja',
+            'critico': 'rojo'
+        }
+        return color_map.get(fatigue_level, 'gris')
 
     def _calculate_work_hours(self, start_time: str, end_time: str) -> float:
         """
@@ -405,29 +553,78 @@ class HQFOAnalyzer:
 
     def _determine_driver_status_color(self, driver: Dict) -> str:
         """
-        Determina el color de estado para conductores
+        Determina el color de estado para conductores basado en días desde última inspección
+        Verde: máximo 5 días desde su última inspección
+        Amarillo: de 6 a 10 días 
+        Rojo: más de 10 días (requiere acciones inmediatas)
         """
-        fatigue_level = driver.get('nivel_fatiga', 'normal')
+        fecha_inspeccion = driver.get('fecha_inspeccion')
         
-        if fatigue_level == 'critico':
-            return 'rojo'
-        elif fatigue_level in ['alto', 'alerta']:
-            return 'amarillo'
-        else:
-            return 'verde'
+        if fecha_inspeccion:
+            dias_desde_inspeccion = self._calculate_days_since_inspection(fecha_inspeccion)
+            
+            if dias_desde_inspeccion <= 5:
+                return 'verde'
+            elif dias_desde_inspeccion <= 10:
+                return 'amarillo'
+            else:
+                return 'rojo'
+        
+        # Si no hay fecha, considerar como crítico
+        return 'rojo'
+
+    def _calculate_days_since_inspection(self, inspection_date: str) -> int:
+        """
+        Calcula los días transcurridos desde la última inspección
+        """
+        try:
+            # Intentar varios formatos de fecha
+            date_formats = [
+                '%Y-%m-%d',
+                '%d/%m/%Y', 
+                '%d-%m-%Y',
+                '%m/%d/%Y',
+                '%d/%m/%y',
+                '%d-%m-%y',
+                '%Y/%m/%d'
+            ]
+            
+            inspection_dt = None
+            for fmt in date_formats:
+                try:
+                    inspection_dt = datetime.strptime(str(inspection_date).strip(), fmt)
+                    break
+                except ValueError:
+                    continue
+            
+            if inspection_dt:
+                today = datetime.now()
+                difference = today - inspection_dt
+                return max(0, difference.days)
+            
+            return 999  # Si no se puede parsear, asumir muy antigua
+            
+        except Exception:
+            return 999
 
     def _determine_failure_status_color(self, description: str) -> str:
         """
-        Determina el color de estado para fallas
+        Determina el color de estado para fallas según especificación:
+        Verde: ninguna falla
+        Amarillo: fallas no tan críticas
+        Rojo: fallas críticas, camión inutilizado requiere atención
         """
+        if not description or description.strip() == '':
+            return 'verde'  # Sin fallas
+        
         severity = self._determine_severity(description)
         
         if severity == 'critico':
-            return 'rojo'
+            return 'rojo'    # Fallas críticas - camión inutilizado
         elif severity in ['alto', 'medio']:
-            return 'amarillo'
+            return 'amarillo'  # Fallas no tan críticas
         else:
-            return 'verde'
+            return 'verde'   # Fallas menores o ninguna
 
     def _generate_status_colors(self):
         """
@@ -542,8 +739,12 @@ class HQFOAnalyzer:
             drivers = [d for d in drivers if d.get('status_color') == filters['status_color']]
         
         if 'search_term' in filters and filters['search_term']:
-            term = filters['search_term'].lower()
-            drivers = [d for d in drivers if term in d.get('nombre', '').lower()]
+            term = filters['search_term'].lower().strip()
+            # Búsqueda inteligente: por inicio de nombre o contenido
+            drivers = [d for d in drivers if (
+                d.get('nombre', '').lower().startswith(term) or  # Empieza con el término
+                term in d.get('nombre', '').lower()              # Contiene el término
+            )]
         
         return drivers
 
