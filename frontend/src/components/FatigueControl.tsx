@@ -24,6 +24,26 @@ const FatigueControl: React.FC<FatigueControlProps> = ({ onDriverSelect }) => {
   const [selectedLevels, setSelectedLevels] = useState<string[]>(['alerta', 'alto', 'critico']);
   const [sortBy, setSortBy] = useState<'fatigue' | 'hours' | 'name'>('fatigue');
 
+  const sortDrivers = useCallback((drivers: FatiguedDriver[], criteria: string): FatiguedDriver[] => {
+    return [...drivers].sort((a, b) => {
+      switch (criteria) {
+        case 'fatigue':
+          const fatigueOrder = { critico: 0, alto: 1, alerta: 2, normal: 3 };
+          return (fatigueOrder[a.nivel_fatiga as keyof typeof fatigueOrder] || 4) - 
+                 (fatigueOrder[b.nivel_fatiga as keyof typeof fatigueOrder] || 4);
+        
+        case 'hours':
+          return (b.horas_trabajadas || 0) - (a.horas_trabajadas || 0);
+        
+        case 'name':
+          return (a.conductor_nombre || '').localeCompare(b.conductor_nombre || '');
+        
+        default:
+          return 0;
+      }
+    });
+  }, []);
+
   const fetchFatiguedDrivers = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -53,27 +73,7 @@ const FatigueControl: React.FC<FatigueControlProps> = ({ onDriverSelect }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedLevels, sortBy]);
-
-  const sortDrivers = useCallback((drivers: FatiguedDriver[], criteria: string): FatiguedDriver[] => {
-    return [...drivers].sort((a, b) => {
-      switch (criteria) {
-        case 'fatigue':
-          const fatigueOrder = { critico: 0, alto: 1, alerta: 2, normal: 3 };
-          return (fatigueOrder[a.nivel_fatiga as keyof typeof fatigueOrder] || 4) - 
-                 (fatigueOrder[b.nivel_fatiga as keyof typeof fatigueOrder] || 4);
-        
-        case 'hours':
-          return (b.horas_trabajadas || 0) - (a.horas_trabajadas || 0);
-        
-        case 'name':
-          return (a.conductor_nombre || '').localeCompare(b.conductor_nombre || '');
-        
-        default:
-          return 0;
-      }
-    });
-  }, []);
+  }, [selectedLevels, sortBy, sortDrivers]);
 
   const handleLevelFilter = (level: string) => {
     setSelectedLevels(prev => {

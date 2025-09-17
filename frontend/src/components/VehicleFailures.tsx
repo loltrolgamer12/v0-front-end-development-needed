@@ -50,6 +50,35 @@ const VehicleFailures: React.FC<VehicleFailuresProps> = ({ onVehicleSelect }) =>
     { value: 'bajo', label: 'Bajo', icon: '✅', color: '#28a745' }
   ];
 
+  const sortVehicles = useCallback((vehicleList: VehicleWithFailures[], criteria: string): VehicleWithFailures[] => {
+    return [...vehicleList].sort((a, b) => {
+      switch (criteria) {
+        case 'severity':
+          // Ordenar por severidad crítica primero
+          const severityOrder = { critico: 0, alto: 1, medio: 2, bajo: 3 };
+          const aSeverities = a.fallas_severidades.split(', ').map(s => s.trim());
+          const bSeverities = b.fallas_severidades.split(', ').map(s => s.trim());
+          
+          const aMaxSeverity = Math.min(...aSeverities.map(s => severityOrder[s as keyof typeof severityOrder] || 4));
+          const bMaxSeverity = Math.min(...bSeverities.map(s => severityOrder[s as keyof typeof severityOrder] || 4));
+          
+          return aMaxSeverity - bMaxSeverity;
+        
+        case 'failures':
+          return (b.total_fallas || 0) - (a.total_fallas || 0);
+        
+        case 'km':
+          return (b.kilometraje || 0) - (a.kilometraje || 0);
+        
+        case 'placa':
+          return (a.placa || '').localeCompare(b.placa || '');
+        
+        default:
+          return 0;
+      }
+    });
+  }, []);
+
   const fetchVehiclesWithFailures = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -83,36 +112,7 @@ const VehicleFailures: React.FC<VehicleFailuresProps> = ({ onVehicleSelect }) =>
     } finally {
       setLoading(false);
     }
-  }, [filters, sortBy]);
-
-  const sortVehicles = useCallback((vehicleList: VehicleWithFailures[], criteria: string): VehicleWithFailures[] => {
-    return [...vehicleList].sort((a, b) => {
-      switch (criteria) {
-        case 'severity':
-          // Ordenar por severidad crítica primero
-          const severityOrder = { critico: 0, alto: 1, medio: 2, bajo: 3 };
-          const aSeverities = a.fallas_severidades.split(', ').map(s => s.trim());
-          const bSeverities = b.fallas_severidades.split(', ').map(s => s.trim());
-          
-          const aMaxSeverity = Math.min(...aSeverities.map(s => severityOrder[s as keyof typeof severityOrder] || 4));
-          const bMaxSeverity = Math.min(...bSeverities.map(s => severityOrder[s as keyof typeof severityOrder] || 4));
-          
-          return aMaxSeverity - bMaxSeverity;
-        
-        case 'failures':
-          return (b.total_fallas || 0) - (a.total_fallas || 0);
-        
-        case 'km':
-          return (b.kilometraje || 0) - (a.kilometraje || 0);
-        
-        case 'placa':
-          return (a.placa || '').localeCompare(b.placa || '');
-        
-        default:
-          return 0;
-      }
-    });
-  }, []);
+  }, [filters, sortBy, sortVehicles]);
 
   const handleFilterChange = (key: keyof FailureFilter, value: string) => {
     setFilters(prev => ({
