@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "name": "hq-fo-40-sistema",
+  "buildCommand": "cd vehicle-inspection-system/frontend && npm install && npm run build",
+  "outputDirectory": "vehicle-inspection-system/frontend/build",
+  "builds": [
+    {
+      "src": "vehicle-inspection-system/backend/app.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/vehicle-inspection-system/backend/app.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/vehicle-inspection-system/frontend/build/$1"
+    }
+  ],
+  "env": {
+    "FLASK_ENV": "production",
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "vehicle-inspection-system/backend/app.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
+    }
+  ]
+}
