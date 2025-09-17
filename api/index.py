@@ -10,7 +10,6 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')  # Backend sin GUI para gráficos
 import matplotlib.pyplot as plt
-import seaborn as sns
 from datetime import datetime, timedelta
 import os
 import tempfile
@@ -371,7 +370,8 @@ def generate_chart(tipo):
         
         # Configurar estilo de gráficos
         plt.style.use('default')
-        sns.set_palette("husl")
+        # Usar colores vibrantes para las gráficas
+        plt.rcParams['axes.prop_cycle'] = plt.cycler('color', ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'])
         
         if tipo == 'estado_vehiculos':
             # Gráfica de estado de vehículos

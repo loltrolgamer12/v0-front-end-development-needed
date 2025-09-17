@@ -1,16 +1,8 @@
-# Backend - Sistema de Inspecciones Vehiculares v2.0.0 - Vercel Optimized
-Flask==2.3.3
-Flask-CORS==4.0.0
-Werkzeug==2.3.7
-
-# Análisis de datos
-pandas==2.0.3
-numpy==1.24.4
-openpyxl==3.1.2
-
-# Visualización ligera
-matplotlib==3.7.2
-seaborn==0.12.2
-
-# Utilidades esenciales
-python-dateutil==2.8.2
+# Sistema HQ-FO-40 - Vercel Minimal
+Flask>=2.0.0,<3.0.0
+Flask-CORS>=3.0.0,<5.0.0
+pandas>=1.5.0,<3.0.0
+numpy>=1.20.0,<2.0.0
+openpyxl>=3.0.0,<4.0.0
+matplotlib>=3.5.0,<4.0.0
+python-dateutil>=2.8.0,<3.0.0
