@@ -178,7 +178,7 @@ const VehicleFailures: React.FC<VehicleFailuresProps> = ({ onVehicleSelect }) =>
 
   useEffect(() => {
     fetchVehiclesWithFailures();
-  }, [filters, sortBy]);
+  }, [filters, sortBy, fetchVehiclesWithFailures]);
 
   if (loading) {
     return (

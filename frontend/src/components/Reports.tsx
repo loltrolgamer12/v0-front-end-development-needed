@@ -87,9 +87,8 @@ const Reports: React.FC = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else {
-        // JSON response
-        const data = await response.json();
-        // Report data processed
+        // JSON response - data processed internally
+        await response.json();
       }
 
       await loadReportHistory();

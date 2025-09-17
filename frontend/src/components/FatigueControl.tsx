@@ -124,7 +124,7 @@ const FatigueControl: React.FC<FatigueControlProps> = ({ onDriverSelect }) => {
 
   useEffect(() => {
     fetchFatiguedDrivers();
-  }, [selectedLevels, sortBy]);
+  }, [selectedLevels, sortBy, fetchFatiguedDrivers]);
 
   if (loading) {
     return (

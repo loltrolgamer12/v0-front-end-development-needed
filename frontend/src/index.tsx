@@ -131,7 +131,7 @@ axios.interceptors.response.use(
     if (process.env.NODE_ENV === 'development' && (response.config as any).metadata) {
       const endTime = new Date();
       const duration = endTime.getTime() - (response.config as any).metadata.startTime.getTime();
-      // API response logged in development only
+      console.log(`API call took ${duration}ms`);
     }
     
     return response;

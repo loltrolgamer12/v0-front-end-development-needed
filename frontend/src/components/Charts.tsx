@@ -110,7 +110,7 @@ const Charts: React.FC<ChartsProps> = ({
       const interval = setInterval(fetchAllCharts, refreshInterval);
       return () => clearInterval(interval);
     }
-  }, [autoRefresh, refreshInterval]);
+  }, [autoRefresh, refreshInterval, fetchAllCharts]);
 
   return (
     <div className="charts-container">
