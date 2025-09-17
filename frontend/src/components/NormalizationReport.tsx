@@ -7,7 +7,7 @@ interface NormalizationItem {
   tipo: string;
 }
 
-interface NormalizationReport {
+interface NormalizationReportData {
   conductores_normalizados: NormalizationItem[];
   vehiculos_normalizados: NormalizationItem[];
   fallas_normalizadas: NormalizationItem[];
@@ -16,7 +16,7 @@ interface NormalizationReport {
 }
 
 const NormalizationReport: React.FC = () => {
-  const [report, setReport] = useState<NormalizationReport | null>(null);
+  const [report, setReport] = useState<NormalizationReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'conductores' | 'vehiculos' | 'fallas'>('conductores');
