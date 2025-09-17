@@ -23,7 +23,16 @@ app = Flask(__name__)
 CORS(app)
 
 # Configuración para Vercel
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB máximo
+app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024  # 4MB máximo para serverless
+
+# Handler para errores de tamaño de archivo
+@app.errorhandler(413)
+def handle_file_too_large(e):
+    return jsonify({
+        'error': 'Archivo demasiado grande',
+        'message': 'El archivo debe ser menor a 4MB. Intente comprimir o dividir el archivo Excel.',
+        'max_size': '4MB'
+    }), 413
 
 # Base de datos temporal en memoria
 DATABASE = ':memory:'
@@ -614,6 +623,8 @@ def generate_report():
 def get_dashboard_data():
     """Endpoint para datos del dashboard principal"""
     try:
+        # Inicializar DB si no existe
+        init_db()
         conn = sqlite3.connect(DATABASE)
         
         # Estadísticas generales
@@ -626,17 +637,26 @@ def get_dashboard_data():
         # Resumen general
         cursor = conn.cursor()
         
-        # Contar vehículos por estado
-        cursor.execute('SELECT status_color, COUNT(*) FROM vehiculos GROUP BY status_color')
-        vehiculos_estado = {row[0]: row[1] for row in cursor.fetchall()}
+        # Contar vehículos por estado (con manejo de tablas vacías)
+        try:
+            cursor.execute('SELECT status_color, COUNT(*) FROM vehiculos GROUP BY status_color')
+            vehiculos_estado = {row[0]: row[1] for row in cursor.fetchall()}
+        except:
+            vehiculos_estado = {}
         
-        # Contar conductores por fatiga
-        cursor.execute('SELECT nivel_fatiga, COUNT(*) FROM control_fatiga GROUP BY nivel_fatiga')
-        conductores_fatiga = {row[0]: row[1] for row in cursor.fetchall()}
+        # Contar conductores por fatiga (con manejo de tablas vacías)
+        try:
+            cursor.execute('SELECT nivel_fatiga, COUNT(*) FROM control_fatiga GROUP BY nivel_fatiga')
+            conductores_fatiga = {row[0]: row[1] for row in cursor.fetchall()}
+        except:
+            conductores_fatiga = {}
         
-        # Contar fallas por severidad
-        cursor.execute('SELECT severidad, COUNT(*) FROM fallas_mecanicas GROUP BY severidad')
-        fallas_severidad = {row[0]: row[1] for row in cursor.fetchall()}
+        # Contar fallas por severidad (con manejo de tablas vacías)
+        try:
+            cursor.execute('SELECT severidad, COUNT(*) FROM fallas_mecanicas GROUP BY severidad')
+            fallas_severidad = {row[0]: row[1] for row in cursor.fetchall()}
+        except:
+            fallas_severidad = {}
         
         dashboard_data['resumen'] = {
             'vehiculos': vehiculos_estado,
