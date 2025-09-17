@@ -3,6 +3,6 @@
   "buildCommand": "cd frontend && npm ci && npm run build",
   "outputDirectory": "frontend/build",
   "env": {
-    "REACT_APP_API_URL": "https://analisis-exel-backend.vercel.app"
+    "REACT_APP_API_URL": "https://hq-fo-40-sistema-1pt7lhkfd-loltrolgamer12s-projects.vercel.app"
   }
 }
