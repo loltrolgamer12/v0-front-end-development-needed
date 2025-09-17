@@ -1,14 +1,13 @@
 {
   "version": 2,
-  "name": "hq-fo-40-sistema",
   "buildCommand": "cd vehicle-inspection-system/frontend && npm install && npm run build",
   "outputDirectory": "vehicle-inspection-system/frontend/build",
-  "builds": [
-    {
-      "src": "vehicle-inspection-system/backend/app.py",
-      "use": "@vercel/python"
+  "functions": {
+    "vehicle-inspection-system/backend/app.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30
     }
-  ],
+  },
   "routes": [
     {
       "src": "/api/(.*)",
@@ -22,12 +21,6 @@
   "env": {
     "FLASK_ENV": "production",
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "vehicle-inspection-system/backend/app.py": {
-      "runtime": "python3.9",
-      "maxDuration": 30
-    }
   },
   "headers": [
     {
