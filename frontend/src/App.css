@@ -1,0 +1,286 @@
+.App {
+  min-height: 100vh;
+  background-color: var(--bg-secondary);
+}
+
+/* Estilos específicos para el componente principal App */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  background-color: var(--bg-secondary);
+}
+
+/* Estilos para transiciones de página */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms ease-out, transform 300ms ease-out;
+}
+
+.page-transition-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: opacity 200ms ease-in, transform 200ms ease-in;
+}
+
+/* Estilos para loading states globales */
+.app-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.app-loading-text {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Estilos para mensajes de error globales */
+.app-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: var(--spacing-xl);
+  text-align: center;
+}
+
+.app-error-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-danger);
+  margin-bottom: var(--spacing-md);
+}
+
+.app-error-message {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  max-width: 500px;
+  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--spacing-lg);
+}
+
+.app-error-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Estilos responsive para la aplicación */
+@media (max-width: 768px) {
+  .app-main {
+    flex-direction: column;
+  }
+  
+  .app-error {
+    padding: var(--spacing-lg);
+    min-height: 50vh;
+  }
+  
+  .app-error-title {
+    font-size: var(--font-size-xl);
+  }
+  
+  .app-error-actions {
+    flex-direction: column;
+    width: 100%;
+    max-width: 300px;
+  }
+}
+
+/* Estilos para overlays y modales globales */
+.app-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-overlay);
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-modal {
+  background-color: var(--bg-primary);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-xl);
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+/* Animaciones de entrada para modales */
+.modal-enter {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.modal-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.modal-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.modal-exit-active {
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 150ms ease-in, transform 150ms ease-in;
+}
+
+/* Estilos para notificaciones toast personalizadas */
+.toast-custom {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  padding: var(--spacing-md);
+  max-width: 400px;
+}
+
+.toast-success {
+  border-left: 4px solid var(--color-success);
+  background-color: var(--color-success-50);
+}
+
+.toast-error {
+  border-left: 4px solid var(--color-danger);
+  background-color: var(--color-danger-50);
+}
+
+.toast-warning {
+  border-left: 4px solid var(--color-warning);
+  background-color: var(--color-warning-50);
+}
+
+.toast-info {
+  border-left: 4px solid var(--color-info);
+  background-color: var(--color-info-50);
+}
+
+/* Estilos para scroll suave en la aplicación */
+.smooth-scroll {
+  scroll-behavior: smooth;
+}
+
+/* Estilos para focus y accesibilidad */
+.focus-visible,
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Animación global para elementos que aparecen */
+.fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Utilidades globales específicas de la app */
+.app-content {
+  flex: 1;
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+}
+
+.app-header {
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding: var(--spacing-md) var(--spacing-lg);
+}
+
+.app-sidebar {
+  background-color: var(--bg-primary);
+  border-right: 1px solid var(--border-color);
+  width: 280px;
+  flex-shrink: 0;
+}
+
+/* Responsive breakpoints específicos */
+@media (max-width: 1024px) {
+  .app-sidebar {
+    width: 240px;
+  }
+  
+  .app-content {
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: var(--z-fixed);
+    transform: translateX(-100%);
+    transition: transform var(--transition-normal);
+  }
+  
+  .app-sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .app-content {
+    padding: var(--spacing-sm);
+  }
+}
+
+/* Estilos para estados de carga específicos */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-gray-100) 25%, var(--color-gray-200) 50%, var(--color-gray-100) 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
