@@ -8,6 +8,7 @@ import {
   Wrench, 
   BarChart3, 
   FileText,
+  Settings,
   X
 } from 'lucide-react';
 import './Sidebar.css';
@@ -60,6 +61,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: 'Reportes',
       icon: FileText,
       description: 'Generación de reportes PDF/Excel'
+    },
+    {
+      path: '/normalization',
+      label: 'Normalización',
+      icon: Settings,
+      description: 'Reporte de datos normalizados'
     }
   ];
 

@@ -37,6 +37,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         return 'Gráficas Interactivas';
       case '/reports':
         return 'Sistema de Reportes';
+      case '/normalization':
+        return 'Normalización de Datos';
       default:
         return 'Sistema HQ-FO-40';
     }

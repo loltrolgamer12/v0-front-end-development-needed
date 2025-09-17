@@ -8,6 +8,7 @@ import FatigueControl from './components/FatigueControl';
 import VehicleFailures from './components/VehicleFailures';
 import Charts from './components/Charts';
 import Reports from './components/Reports';
+import NormalizationReport from './components/NormalizationReport';
 import NotFound from './pages/NotFound';
 import './App.css';
 
@@ -28,6 +29,7 @@ const App: React.FC = () => {
           <Route path="/failures" element={<VehicleFailures />} />
           <Route path="/charts" element={<Charts />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/normalization" element={<NormalizationReport />} />
           
           {/* Ruta 404 - debe estar al final */}
           <Route path="*" element={<NotFound />} />

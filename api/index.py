@@ -230,11 +230,16 @@ def upload_file():
             # Guardar en base de datos
             save_to_db(result['data'])
             
+            # Guardar reporte de normalización en memoria
+            if 'normalization_report' in result:
+                analyzer.last_normalization_report = result['normalization_report']
+            
             return jsonify({
                 'success': True,
                 'message': 'Archivo procesado exitosamente',
                 'data': result['data'],
-                'summary': result['summary']
+                'summary': result['summary'],
+                'normalization_report': result.get('normalization_report', {})
             })
         else:
             return jsonify({'error': result['error']}), 500
@@ -712,6 +717,34 @@ def get_dashboard_data():
         
     except Exception as e:
         return jsonify({'error': f'Error obteniendo datos del dashboard: {str(e)}'}), 500
+
+@app.route('/api/normalization-report', methods=['GET'])
+def get_normalization_report():
+    """Endpoint para obtener reporte de normalización de datos"""
+    try:
+        # Obtener el último reporte de normalización guardado en memoria
+        if hasattr(analyzer, 'last_normalization_report'):
+            return jsonify({
+                'success': True,
+                'normalization_report': analyzer.last_normalization_report,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'normalization_report': {
+                    'conductores_normalizados': [],
+                    'vehiculos_normalizados': [],
+                    'fallas_normalizadas': [],
+                    'fechas_normalizadas': [],
+                    'total_normalizaciones': 0
+                },
+                'message': 'No hay datos procesados aún',
+                'timestamp': datetime.now().isoformat()
+            })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error obteniendo reporte de normalización: {str(e)}'}), 500
 
 @app.route('/api/status', methods=['GET'])
 def api_status():

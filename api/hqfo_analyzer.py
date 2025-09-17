@@ -60,6 +60,310 @@ class HQFOAnalyzer:
             'medio': ['desgaste', 'revisar', 'mantenimiento', 'atención'],
             'bajo': ['normal', 'operativo', 'funcionando', 'ok', 'bien']
         }
+        
+        # Diccionarios para normalización de datos de encuestas
+        self.name_normalizations = {
+            # Abreviaciones comunes
+            'jn': 'juan',
+            'jc': 'juan carlos',
+            'ma': 'maria',
+            'js': 'jose',
+            'ant': 'antonio',
+            'fco': 'francisco',
+            'paco': 'francisco',
+            'pepe': 'jose',
+            'memo': 'guillermo',
+            'lalo': 'eduardo',
+            'alex': 'alejandro',
+            'seba': 'sebastian',
+            'ferna': 'fernando',
+            'cris': 'cristian',
+            'dani': 'daniel'
+        }
+        
+        self.yes_no_normalizations = {
+            # Variaciones de SÍ
+            'si': 'si', 'sí': 'si', 'yes': 'si', 'y': 'si', 'ok': 'si', 'x': 'si',
+            '✓': 'si', '✔': 'si', 'true': 'si', '1': 'si', 'positivo': 'si',
+            'afirmativo': 'si', 'correcto': 'si', 'bien': 'si', 'bueno': 'si',
+            # Variaciones de NO
+            'no': 'no', 'n': 'no', 'false': 'no', '0': 'no', 'negativo': 'no',
+            '✗': 'no', '✘': 'no', 'mal': 'no', 'malo': 'no', 'incorrecto': 'no'
+        }
+        
+        self.vehicle_code_patterns = [
+            r'^[A-Z]{2,3}-?\d{3,4}$',  # ABC-123, AB123
+            r'^[A-Z]{3}\d{3}$',        # ABC123  
+            r'^\d{3,4}[A-Z]{2,3}$',    # 123ABC
+            r'^V-?\d{3,4}$',           # V123, V-123
+            r'^VEH-?\d{3,4}$'          # VEH123, VEH-123
+        ]
+
+    # ==================== MÉTODOS DE NORMALIZACIÓN ====================
+    
+    def normalize_name(self, name: str) -> str:
+        """
+        Normaliza nombres de conductores eliminando discrepancias de encuesta
+        """
+        if not name or pd.isna(name):
+            return ""
+        
+        # Convertir a string y limpiar
+        name = str(name).strip()
+        
+        # Remover caracteres especiales y números
+        name = re.sub(r'[^\w\s\áéíóúüñÁÉÍÓÚÜÑ]', '', name)
+        
+        # Convertir a minúsculas para normalización
+        name_lower = name.lower()
+        
+        # Expandir abreviaciones comunes
+        words = name_lower.split()
+        normalized_words = []
+        
+        for word in words:
+            # Buscar abreviación exacta
+            if word in self.name_normalizations:
+                normalized_words.append(self.name_normalizations[word])
+            else:
+                # Buscar abreviaciones parciales
+                found = False
+                for abbr, full in self.name_normalizations.items():
+                    if word.startswith(abbr) and len(word) <= len(abbr) + 2:
+                        normalized_words.append(full)
+                        found = True
+                        break
+                if not found:
+                    normalized_words.append(word)
+        
+        # Unir y capitalizar correctamente
+        normalized_name = ' '.join(normalized_words)
+        return self._capitalize_name_properly(normalized_name)
+    
+    def _capitalize_name_properly(self, name: str) -> str:
+        """
+        Capitaliza nombres correctamente respetando reglas españolas
+        """
+        # Palabras que deben ir en minúsculas
+        lowercase_words = ['de', 'del', 'la', 'las', 'el', 'los', 'y']
+        
+        words = name.split()
+        capitalized = []
+        
+        for i, word in enumerate(words):
+            if i > 0 and word in lowercase_words:
+                capitalized.append(word)
+            else:
+                capitalized.append(word.capitalize())
+        
+        return ' '.join(capitalized)
+    
+    def normalize_yes_no_response(self, response) -> Optional[str]:
+        """
+        Normaliza respuestas Sí/No de encuestas con múltiples variaciones
+        """
+        if pd.isna(response) or response == '':
+            return None
+        
+        response_str = str(response).strip().lower()
+        
+        # Buscar en diccionario de normalizaciones
+        if response_str in self.yes_no_normalizations:
+            return self.yes_no_normalizations[response_str]
+        
+        # Detectar patrones adicionales
+        if any(pattern in response_str for pattern in ['si', 'yes', 'correcto', 'bien']):
+            return 'si'
+        elif any(pattern in response_str for pattern in ['no', 'mal', 'incorrecto', 'negat']):
+            return 'no'
+        
+        return None
+    
+    def normalize_vehicle_code(self, code: str) -> str:
+        """
+        Normaliza códigos de vehículos eliminando inconsistencias
+        """
+        if not code or pd.isna(code):
+            return ""
+        
+        # Convertir a string y limpiar
+        code = str(code).strip().upper()
+        
+        # Remover espacios internos y caracteres extraños
+        code = re.sub(r'[^\w-]', '', code)
+        
+        # Intentar detectar y corregir patrones comunes
+        for pattern in self.vehicle_code_patterns:
+            if re.match(pattern, code):
+                return code
+        
+        # Si no coincide con patrones, intentar corregir
+        # Separar letras y números
+        letters = re.findall(r'[A-Z]+', code)
+        numbers = re.findall(r'\d+', code)
+        
+        if letters and numbers:
+            # Formato estándar: ABC-123
+            return f"{letters[0]}-{numbers[0]}"
+        
+        return code
+    
+    def normalize_failure_description(self, description: str) -> str:
+        """
+        Normaliza descripciones de fallas para mejor categorización
+        """
+        if not description or pd.isna(description):
+            return ""
+        
+        description = str(description).strip().lower()
+        
+        # Correcciones ortográficas comunes
+        corrections = {
+            'neumatico': 'neumático',
+            'bateria': 'batería',
+            'electrico': 'eléctrico',
+            'mecanico': 'mecánico',
+            'hidraulico': 'hidráulico',
+            'acelerador': 'acelerador',
+            'direccion': 'dirección',
+            'transmision': 'transmisión',
+            'suspension': 'suspensión',
+            'refrigeracion': 'refrigeración',
+            'no funciona': 'no funciona',
+            'mal estado': 'mal estado',
+            'esta roto': 'roto',
+            'no sirve': 'no funciona',
+            'falla': 'falla',
+            'problema': 'falla',
+            'averia': 'avería',
+            'defecto': 'falla'
+        }
+        
+        # Aplicar correcciones
+        for error, correction in corrections.items():
+            description = description.replace(error, correction)
+        
+        # Eliminar palabras redundantes
+        description = re.sub(r'\b(el|la|los|las|un|una|tiene|esta|está)\b', '', description)
+        description = re.sub(r'\s+', ' ', description).strip()
+        
+        return description
+    
+    def normalize_time_format(self, time_str: str) -> str:
+        """
+        Normaliza formatos de tiempo de encuestas
+        """
+        if not time_str or pd.isna(time_str):
+            return ""
+        
+        time_str = str(time_str).strip()
+        
+        # Patrones comunes de tiempo mal escritos
+        time_patterns = [
+            (r'(\d{1,2})[:.](\d{2})\s*([ap]m?)', r'\1:\2 \3'),  # 2:30pm -> 2:30 pm
+            (r'(\d{1,2}):(\d{2}):(\d{2})', r'\1:\2'),           # 14:30:00 -> 14:30
+            (r'(\d{1,2})(\d{2})(?!:)', r'\1:\2'),               # 1430 -> 14:30
+            (r'(\d{1,2})\s*h\s*(\d{2})', r'\1:\2'),             # 14h30 -> 14:30
+        ]
+        
+        for pattern, replacement in time_patterns:
+            time_str = re.sub(pattern, replacement, time_str, flags=re.IGNORECASE)
+        
+        return time_str.strip()
+    
+    def normalize_date_format(self, date_str: str) -> str:
+        """
+        Normaliza formatos de fecha de encuestas a formato estándar YYYY-MM-DD
+        """
+        if not date_str or pd.isna(date_str):
+            return ""
+        
+        date_str = str(date_str).strip()
+        
+        # Patrones de fecha comunes
+        date_patterns = [
+            (r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', r'\3-\2-\1'),      # DD/MM/YYYY -> YYYY-MM-DD
+            (r'(\d{1,2})[/-](\d{1,2})[/-](\d{2})$', r'20\3-\2-\1'),   # DD/MM/YY -> 20YY-MM-DD
+            (r'(\d{4})[/-](\d{1,2})[/-](\d{1,2})', r'\1-\2-\3'),      # YYYY/MM/DD -> YYYY-MM-DD
+        ]
+        
+        for pattern, replacement in date_patterns:
+            match = re.match(pattern, date_str)
+            if match:
+                # Asegurar formato de dos dígitos para mes y día
+                parts = replacement.format(*match.groups()).split('-')
+                if len(parts) == 3:
+                    year, month, day = parts
+                    return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        
+        return date_str
+    
+    def generate_normalization_report(self) -> Dict:
+        """
+        Genera un reporte de todas las normalizaciones aplicadas
+        """
+        report = {
+            'conductores_normalizados': [],
+            'vehiculos_normalizados': [],
+            'fallas_normalizadas': [],
+            'fechas_normalizadas': [],
+            'total_normalizaciones': 0
+        }
+        
+        # Revisar conductores normalizados
+        for conductor in self.processed_data.get('conductores', []):
+            if 'nombre_original' in conductor:
+                if conductor['nombre'] != conductor['nombre_original']:
+                    report['conductores_normalizados'].append({
+                        'original': conductor['nombre_original'],
+                        'normalizado': conductor['nombre'],
+                        'tipo': 'nombre'
+                    })
+            
+            if 'hora_inicio_original' in conductor:
+                if conductor['hora_inicio'] != conductor['hora_inicio_original']:
+                    report['conductores_normalizados'].append({
+                        'original': conductor['hora_inicio_original'],
+                        'normalizado': conductor['hora_inicio'],
+                        'tipo': 'hora_inicio'
+                    })
+                    
+            if 'hora_fin_original' in conductor:
+                if conductor['hora_fin'] != conductor['hora_fin_original']:
+                    report['conductores_normalizados'].append({
+                        'original': conductor['hora_fin_original'],
+                        'normalizado': conductor['hora_fin'],
+                        'tipo': 'hora_fin'
+                    })
+        
+        # Revisar vehículos normalizados
+        for vehiculo in self.processed_data.get('vehiculos', []):
+            if 'codigo_original' in vehiculo:
+                if vehiculo['codigo'] != vehiculo['codigo_original']:
+                    report['vehiculos_normalizados'].append({
+                        'original': vehiculo['codigo_original'],
+                        'normalizado': vehiculo['codigo'],
+                        'tipo': 'codigo'
+                    })
+        
+        # Revisar fallas normalizadas
+        for falla in self.processed_data.get('fallas_mecanicas', []):
+            if 'descripcion_original' in falla:
+                if falla['descripcion'] != falla['descripcion_original']:
+                    report['fallas_normalizadas'].append({
+                        'original': falla['descripcion_original'],
+                        'normalizado': falla['descripcion'],
+                        'tipo': 'descripcion'
+                    })
+        
+        # Calcular total
+        report['total_normalizaciones'] = (
+            len(report['conductores_normalizados']) +
+            len(report['vehiculos_normalizados']) + 
+            len(report['fallas_normalizadas'])
+        )
+        
+        return report
 
     def analyze_excel(self, file_path: str) -> Dict:
         """
@@ -85,10 +389,14 @@ class HQFOAnalyzer:
             self._analyze_fatigue_control()
             self._generate_status_colors()
             
+            # Generar reporte de normalización
+            normalization_report = self.generate_normalization_report()
+            
             return {
                 'success': True,
                 'data': self.processed_data,
                 'summary': self._generate_summary(),
+                'normalization_report': normalization_report,
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -144,8 +452,12 @@ class HQFOAnalyzer:
                 # Identificar placa/código de vehículo
                 if re.search(self.section_patterns['vehiculo'], cell_str):
                     if j + 1 < len(row) and not pd.isna(row.iloc[j + 1]):
-                        current_vehicle['codigo'] = str(row.iloc[j + 1]).strip()
-                        current_vehicle['placa'] = str(row.iloc[j + 1]).strip()
+                        raw_code = str(row.iloc[j + 1]).strip()
+                        # NORMALIZAR CÓDIGO DE VEHÍCULO
+                        normalized_code = self.normalize_vehicle_code(raw_code)
+                        current_vehicle['codigo'] = normalized_code
+                        current_vehicle['placa'] = normalized_code
+                        current_vehicle['codigo_original'] = raw_code  # Guardar original
                 
                 # Identificar kilometraje
                 elif re.search(self.section_patterns['kilometraje'], cell_str):
@@ -197,17 +509,24 @@ class HQFOAnalyzer:
                 # Identificar nombre del conductor
                 if re.search(self.section_patterns['conductor'], cell_str):
                     if j + 1 < len(row) and not pd.isna(row.iloc[j + 1]):
-                        current_driver['nombre'] = str(row.iloc[j + 1]).strip()
+                        raw_name = str(row.iloc[j + 1]).strip()
+                        # NORMALIZAR NOMBRE
+                        current_driver['nombre'] = self.normalize_name(raw_name)
+                        current_driver['nombre_original'] = raw_name  # Guardar original para auditoría
                         current_driver['id'] = f"COND_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 
                 # Identificar hora de inicio/fin
                 elif re.search(self.section_patterns['hora'], cell_str):
                     if j + 1 < len(row) and not pd.isna(row.iloc[j + 1]):
-                        time_value = str(row.iloc[j + 1]).strip()
+                        raw_time = str(row.iloc[j + 1]).strip()
+                        # NORMALIZAR TIEMPO
+                        normalized_time = self.normalize_time_format(raw_time)
                         if 'inicio' in cell_str or 'entrada' in cell_str:
-                            current_driver['hora_inicio'] = time_value
+                            current_driver['hora_inicio'] = normalized_time
+                            current_driver['hora_inicio_original'] = raw_time
                         elif 'fin' in cell_str or 'salida' in cell_str:
-                            current_driver['hora_fin'] = time_value
+                            current_driver['hora_fin'] = normalized_time
+                            current_driver['hora_fin_original'] = raw_time
         
         # Obtener fecha de inspección primero
         current_driver['fecha_inspeccion'] = self._extract_inspection_date()
@@ -253,15 +572,19 @@ class HQFOAnalyzer:
                     failure_description = self._extract_failure_description(row, j)
                     
                     if failure_description:
+                        # NORMALIZAR DESCRIPCIÓN DE FALLA
+                        normalized_description = self.normalize_failure_description(failure_description)
+                        
                         failure = {
                             'id': f"FALLA_{len(failures) + 1}_{datetime.now().strftime('%H%M%S')}",
-                            'descripcion': failure_description,
-                            'categoria': self._categorize_failure(failure_description),
-                            'severidad': self._determine_severity(failure_description),
+                            'descripcion': normalized_description,
+                            'descripcion_original': failure_description,  # Guardar original
+                            'categoria': self._categorize_failure(normalized_description),
+                            'severidad': self._determine_severity(normalized_description),
                             'ubicacion_fila': i,
                             'ubicacion_columna': j,
-                            'fecha_reporte': self._extract_inspection_date(),
-                            'status_color': self._determine_failure_status_color(failure_description)
+                            'fecha_reporte': self.normalize_date_format(self._extract_inspection_date()),
+                            'status_color': self._determine_failure_status_color(normalized_description)
                         }
                         failures.append(failure)
         
@@ -427,13 +750,10 @@ class HQFOAnalyzer:
                     response = self.raw_data.iloc[target_row, target_col]
                     
                     if pd.notna(response):
-                        response_str = str(response).strip().lower()
-                        
-                        # Detectar respuestas positivas/negativas
-                        if any(word in response_str for word in ['sí', 'si', 'yes', 'true', '✓', 'x']):
-                            return 'si'
-                        elif any(word in response_str for word in ['no', 'false', '✗']):
-                            return 'no'
+                        # NORMALIZAR RESPUESTA SÍ/NO
+                        normalized_response = self.normalize_yes_no_response(response)
+                        if normalized_response:
+                            return normalized_response
                             
             except (IndexError, KeyError):
                 continue
@@ -649,7 +969,12 @@ class HQFOAnalyzer:
                     
                 cell_str = str(cell).strip()
                 
-                # Intentar parsear como fecha
+                # NORMALIZAR FECHA encontrada
+                normalized_date = self.normalize_date_format(cell_str)
+                if normalized_date and normalized_date != cell_str:
+                    return normalized_date
+                
+                # Intentar parsear como fecha con formatos comunes
                 date_formats = ['%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d', '%m/%d/%Y']
                 for fmt in date_formats:
                     try:
