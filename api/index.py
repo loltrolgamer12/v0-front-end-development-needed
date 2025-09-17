@@ -1460,7 +1460,13 @@ except Exception as e:
     logger.critical("Error inicializando base de datos", e)
     raise
 
-# Para Vercel, el app object es el handler
+# Para Vercel, el app object debe estar disponible en el nivel del módulo
+# Vercel busca una variable llamada 'app' o una función 'handler'
+def handler(request, response):
+    """Handler para Vercel serverless"""
+    return app(request, response)
+
+# Para desarrollo local
 if __name__ == '__main__':
     try:
         port = int(os.environ.get('PORT', 5000))
@@ -1470,3 +1476,7 @@ if __name__ == '__main__':
     except Exception as e:
         logger.critical("Error crítico durante inicialización del servidor", e)
         raise
+
+# Export para Vercel
+# El objeto app debe estar disponible para que Vercel lo pueda usar
+__all__ = ['app', 'handler']
