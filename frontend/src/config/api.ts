@@ -8,7 +8,7 @@ const getApiBaseUrl = (): string => {
   }
   
   // En producción usa la URL del backend deployado
-  return process.env.REACT_APP_API_URL || 'https://back-analicis-exel.vercel.app';
+  return process.env.REACT_APP_API_URL || 'https://back-analicis-exel-qc0w4bynh-loltrolgamer12s-projects.vercel.app';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
