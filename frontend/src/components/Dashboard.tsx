@@ -134,10 +134,25 @@ const Dashboard: React.FC = () => {
       console.log('📊 Dashboard: Datos recibidos:', result);
       
       if (result.success) {
-        setDashboardData(result.dashboard);
-        setLastUpdate(new Date().toLocaleString());
+        setDashboardData(result.data);
+        
+        // Usar el timestamp del backend si está disponible
+        const backendTimestamp = result.timestamp || result.data?.timestamp;
+        setLastUpdate(backendTimestamp 
+          ? new Date(backendTimestamp).toLocaleString('es-ES', {
+              year: 'numeric',
+              month: '2-digit', 
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+            })
+          : new Date().toLocaleString()
+        );
+        
         setError(null);
         console.log('✅ Dashboard: Datos cargados exitosamente');
+        console.log('📅 Backend timestamp:', backendTimestamp);
       } else {
         const errorMsg = `Error en la respuesta del servidor: ${result.message || 'Sin mensaje de error'}`;
         setError(errorMsg);

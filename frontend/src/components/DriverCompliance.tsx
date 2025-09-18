@@ -34,16 +34,19 @@ const DriverCompliance: React.FC = () => {
     setError(null);
 
     try {
-      // Obtener datos específicos de conductores
-      const response = await fetch(API_ENDPOINTS.conductores.compliance);
+      console.log('🚀 DriverCompliance: Iniciando carga de datos...');
+      
+      // Usar el helper con logging mejorado
+      const response = await fetch(API_ENDPOINTS.conductoresCompliance);
       if (!response.ok) {
-        throw new Error('Error al obtener datos de conductores');
+        throw new Error(`Error al obtener datos de conductores: ${response.status} ${response.statusText}`);
       }
 
       const result = await response.json();
+      console.log('📊 DriverCompliance: Datos recibidos:', result);
       
-      if (result.success && result.data.conductores) {
-        let driverData = result.data.conductores;
+      if (result.success && result.data) {
+        let driverData = result.data.conductores || result.data;
         
         // Filtrar por status si se especifica
         if (filterStatus !== 'todos') {
@@ -55,15 +58,35 @@ const DriverCompliance: React.FC = () => {
         
         setDrivers(driverData);
         
-        // Usar estadísticas del backend
+        // Usar estadísticas del backend (con porcentajes ya calculados)
         if (result.data.estadisticas) {
           setStats(result.data.estadisticas);
+          console.log('✅ DriverCompliance: Estadísticas del backend:', result.data.estadisticas);
+        } else if (result.data.resumen) {
+          // Mapear estructura alternativa del backend
+          setStats({
+            total: result.data.resumen.total || driverData.length,
+            cumple: result.data.resumen.normal || 0,
+            alerta: result.data.resumen.alerta || 0,
+            critico: result.data.resumen.critico || 0,
+            porcentaje_cumplimiento: result.data.resumen.porcentaje_normal || 0
+          });
         } else {
           // Calcular estadísticas localmente como fallback
-          const calculatedStats = calculateStats(result.data.conductores);
+          const calculatedStats = calculateStats(driverData);
           setStats(calculatedStats);
+          console.log('⚠️ DriverCompliance: Usando estadísticas calculadas localmente');
         }
+        
+        // Loggear timestamp del backend si está disponible
+        const backendTimestamp = result.timestamp;
+        if (backendTimestamp) {
+          console.log('📅 DriverCompliance: Timestamp del backend:', new Date(backendTimestamp).toLocaleString());
+        }
+        
+        console.log('✅ DriverCompliance: Datos cargados exitosamente');
       } else {
+        console.warn('❌ DriverCompliance: Respuesta inválida del backend:', result);
         setDrivers([]);
         setStats({
           total: 0,
