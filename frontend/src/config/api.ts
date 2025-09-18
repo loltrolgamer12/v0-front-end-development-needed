@@ -13,29 +13,38 @@ const getApiBaseUrl = (): string => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
-// URLs específicas de endpoints
+// URLs específicas de endpoints (corregidas para coincidir con el backend)
 export const API_ENDPOINTS = {
+  // Endpoints principales
+  health: `${API_BASE_URL}/api/health`,
   upload: `${API_BASE_URL}/api/upload`,
+  validateFile: `${API_BASE_URL}/api/validate-file`,
   dashboard: `${API_BASE_URL}/api/dashboard`,
   search: `${API_BASE_URL}/api/search`,
-  conductores: {
-    fatiga: `${API_BASE_URL}/api/conductores/fatiga`,
-    compliance: `${API_BASE_URL}/api/conductores/compliance`,
-  },
+  
+  // Conductores
+  conductores: `${API_BASE_URL}/api/conductores`,
+  conductoresCompliance: `${API_BASE_URL}/api/conductores/compliance`,
+  
+  // Vehículos y fallas
   vehiculos: `${API_BASE_URL}/api/vehiculos`,
   fallas: `${API_BASE_URL}/api/fallas`,
+  
+  // Control de fatiga (endpoint corregido)
+  fatiga: `${API_BASE_URL}/api/fatiga`,
+  
+  // Endpoints legacy (mantener compatibilidad)
+  conductores_legacy: {
+    fatiga: `${API_BASE_URL}/api/fatiga`, // Corrección: fatiga está en /api/fatiga, no /api/conductores/fatiga
+    compliance: `${API_BASE_URL}/api/conductores/compliance`,
+  },
+  
+  // Gráficas (endpoints hipotéticos, verificar con backend)
   graficas: {
-    estadoVehiculos: `${API_BASE_URL}/api/graficas/estado_vehiculos`,
-    fatigaConductores: `${API_BASE_URL}/api/graficas/fatiga_conductores`,
-    severidadFallas: `${API_BASE_URL}/api/graficas/severidad_fallas`,
-    fallasCategoria: `${API_BASE_URL}/api/graficas/fallas_categoria`,
+    estadoVehiculos: `${API_BASE_URL}/api/dashboard`, // Usar dashboard como fallback
+    fatigaConductores: `${API_BASE_URL}/api/fatiga`,
+    severidadFallas: `${API_BASE_URL}/api/fallas`,
   },
-  reports: {
-    history: `${API_BASE_URL}/api/reports/history`,
-    generate: `${API_BASE_URL}/api/reports/generate`,
-  },
-  normalization: `${API_BASE_URL}/api/normalization`,
-  notifications: `${API_BASE_URL}/api/notifications`,
 };
 
 export default API_ENDPOINTS;

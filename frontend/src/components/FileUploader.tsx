@@ -153,14 +153,26 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
   const testAllEndpoints = async () => {
     console.log('🔧 DIAGNÓSTICO: Probando todos los endpoints...');
+    console.log('📋 Endpoints disponibles según backend:');
+    console.log('- GET /api/health - Health check');
+    console.log('- POST /api/upload - Subir Excel');
+    console.log('- GET /api/conductores - Obtener conductores');
+    console.log('- GET /api/conductores/compliance - Compliance conductores');
+    console.log('- GET /api/vehiculos - Obtener vehículos');
+    console.log('- GET /api/fallas - Obtener fallas mecánicas');
+    console.log('- GET /api/fatiga - Control de fatiga');
+    console.log('- GET /api/dashboard - Estadísticas generales');
+    console.log('- GET /api/search - Búsqueda global');
     
     const endpoints = [
+      { name: 'Health Check', url: API_ENDPOINTS.health },
       { name: 'Dashboard', url: API_ENDPOINTS.dashboard },
-      { name: 'Conductores Fatiga', url: API_ENDPOINTS.conductores.fatiga },
-      { name: 'Conductores Compliance', url: API_ENDPOINTS.conductores.compliance },
+      { name: 'Conductores', url: API_ENDPOINTS.conductores },
+      { name: 'Conductores Compliance', url: API_ENDPOINTS.conductoresCompliance },
+      { name: 'Control de Fatiga', url: API_ENDPOINTS.fatiga },
       { name: 'Vehículos', url: API_ENDPOINTS.vehiculos },
       { name: 'Fallas', url: API_ENDPOINTS.fallas },
-      { name: 'Gráficas Estado', url: API_ENDPOINTS.graficas.estadoVehiculos },
+      { name: 'Search', url: API_ENDPOINTS.search },
     ];
 
     for (const endpoint of endpoints) {
