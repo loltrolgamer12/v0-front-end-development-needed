@@ -4,5 +4,11 @@
   "outputDirectory": "frontend/build",
   "env": {
     "REACT_APP_API_URL": "https://back-analicis-exel.vercel.app"
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
