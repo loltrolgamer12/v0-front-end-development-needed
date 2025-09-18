@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import './FileUploader.css';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
 import { uploadWithLogging } from '../utils/fetchWithLogging';
 
 interface UploadResult {
@@ -151,6 +151,42 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const testAllEndpoints = async () => {
+    console.log('🔧 DIAGNÓSTICO: Probando todos los endpoints...');
+    
+    const endpoints = [
+      { name: 'Dashboard', url: API_ENDPOINTS.dashboard },
+      { name: 'Conductores Fatiga', url: API_ENDPOINTS.conductores.fatiga },
+      { name: 'Conductores Compliance', url: API_ENDPOINTS.conductores.compliance },
+      { name: 'Vehículos', url: API_ENDPOINTS.vehiculos },
+      { name: 'Fallas', url: API_ENDPOINTS.fallas },
+      { name: 'Gráficas Estado', url: API_ENDPOINTS.graficas.estadoVehiculos },
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🔍 Probando ${endpoint.name}: ${endpoint.url}`);
+        const response = await fetch(endpoint.url);
+        const text = await response.text();
+        
+        if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+          console.error(`❌ ${endpoint.name}: Devuelve HTML en lugar de JSON`);
+          console.log(`📄 HTML Preview: ${text.substring(0, 100)}...`);
+        } else {
+          console.log(`✅ ${endpoint.name}: Respuesta JSON correcta`);
+          try {
+            const json = JSON.parse(text);
+            console.log(`📊 ${endpoint.name} Data:`, json);
+          } catch (e) {
+            console.warn(`⚠️ ${endpoint.name}: No es JSON válido: ${text.substring(0, 100)}...`);
+          }
+        }
+      } catch (error) {
+        console.error(`💥 ${endpoint.name}: Error de conexión:`, error);
+      }
+    }
+  };
+
   return (
     <div className="file-uploader">
       <div className="uploader-header">
@@ -296,6 +332,17 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           )}
         </div>
       )}
+
+      {/* Botón de diagnóstico de endpoints */}
+      <div className="diagnostic-section">
+        <h3>🔧 Diagnóstico de Backend</h3>
+        <button 
+          onClick={() => testAllEndpoints()}
+          className="diagnostic-btn"
+        >
+          🔍 Probar Todos los Endpoints
+        </button>
+      </div>
 
       {/* Información sobre el formato HQ-FO-40 */}
       <div className="format-info">
