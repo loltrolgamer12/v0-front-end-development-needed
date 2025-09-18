@@ -2,7 +2,6 @@ import React, { useState, useCallback } from 'react';
 import './FileUploader.css';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithLogging } from '../utils/fetchWithLogging';
-import { logger } from '../utils/logger';
 
 interface UploadResult {
   success: boolean;

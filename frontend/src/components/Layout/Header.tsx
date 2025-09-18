@@ -3,7 +3,6 @@ import { Menu, Bell, User, Search, X, AlertTriangle, Car, Users } from 'lucide-r
 import './Header.css';
 import { API_ENDPOINTS } from '../../config/api';
 import { fetchWithLogging } from '../../utils/fetchWithLogging';
-import { logger } from '../../utils/logger';
 
 interface HeaderProps {
   title: string;
