@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './Reports.css';
+import { API_ENDPOINTS } from '../config/api';
 
 interface ReportData {
   id: string;
@@ -41,7 +42,7 @@ const Reports: React.FC = () => {
 
   const loadReportHistory = async () => {
     try {
-      const response = await fetch('/api/reports/history');
+      const response = await fetch(API_ENDPOINTS.reports.history);
       if (!response.ok) {
         throw new Error('Error al cargar historial de reportes');
       }
@@ -63,7 +64,7 @@ const Reports: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetch('/api/reports/generate', {
+      const response = await fetch(API_ENDPOINTS.reports.generate, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './VehicleFailures.css';
+import { API_ENDPOINTS } from '../config/api';
 
 interface VehicleWithFailures {
   id: string;
@@ -89,7 +90,7 @@ const VehicleFailures: React.FC<VehicleFailuresProps> = ({ onVehicleSelect }) =>
       if (filters.category) queryParams.append('category', filters.category);
       if (filters.severity) queryParams.append('severity', filters.severity);
 
-      const response = await fetch(`/api/vehiculos/fallas?${queryParams.toString()}`);
+      const response = await fetch(`${API_ENDPOINTS.fallas}?${queryParams.toString()}`);
       
       if (!response.ok) {
         throw new Error('Error al obtener vehículos con fallas');

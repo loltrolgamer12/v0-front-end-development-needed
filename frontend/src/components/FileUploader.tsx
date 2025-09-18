@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import './FileUploader.css';
+import { API_ENDPOINTS } from '../config/api';
 
 interface UploadResult {
   success: boolean;
@@ -99,7 +100,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     formData.append('file', selectedFile);
     
     try {
-      const response = await fetch('/api/upload', {
+      const response = await fetch(API_ENDPOINTS.upload, {
         method: 'POST',
         body: formData,
       });

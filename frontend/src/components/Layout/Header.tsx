@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, Bell, User, Search, X, AlertTriangle, Car, Users } from 'lucide-react';
 import './Header.css';
+import { API_ENDPOINTS } from '../../config/api';
 
 interface HeaderProps {
   title: string;
@@ -27,9 +28,9 @@ const Header: React.FC<HeaderProps> = ({ title, onMenuClick }) => {
     try {
       // Obtener datos críticos de vehículos, conductores y fallas
       const [vehiculosRes, conductoresRes, fallasRes] = await Promise.all([
-        fetch('/api/vehiculos?status=rojo'),
-        fetch('/api/conductores?fatiga=critico,alto'), 
-        fetch('/api/fallas?severidad=critico')
+        fetch(`${API_ENDPOINTS.vehiculos}?status=rojo`),
+        fetch(`${API_ENDPOINTS.conductores.compliance}?fatiga=critico,alto`), 
+        fetch(`${API_ENDPOINTS.fallas}?severidad=critico`)
       ]);
 
       const criticalNotifications: CriticalNotification[] = [];

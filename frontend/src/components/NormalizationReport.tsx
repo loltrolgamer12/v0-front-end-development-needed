@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './NormalizationReport.css';
+import { API_ENDPOINTS } from '../config/api';
 
 interface NormalizationItem {
   original: string;
@@ -30,7 +31,7 @@ const NormalizationReport: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetch('/api/normalization-report');
+      const response = await fetch(API_ENDPOINTS.normalization);
       if (!response.ok) {
         throw new Error('Error al obtener reporte de normalización');
       }

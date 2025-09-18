@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
+import { API_ENDPOINTS } from '../config/api';
 
 interface DashboardData {
   resumen: {
@@ -116,7 +117,7 @@ const Dashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/dashboard');
+      const response = await fetch(API_ENDPOINTS.dashboard);
       
       if (!response.ok) {
         throw new Error('Error al cargar datos del dashboard');

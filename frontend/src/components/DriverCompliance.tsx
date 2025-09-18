@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './DriverCompliance.css';
+import { API_ENDPOINTS } from '../config/api';
 
 interface Driver {
   id: string;
@@ -34,7 +35,7 @@ const DriverCompliance: React.FC = () => {
 
     try {
       // Obtener datos específicos de conductores
-      const response = await fetch('/api/drivers');
+      const response = await fetch(API_ENDPOINTS.conductores.compliance);
       if (!response.ok) {
         throw new Error('Error al obtener datos de conductores');
       }
