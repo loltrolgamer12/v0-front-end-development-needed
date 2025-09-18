@@ -11,6 +11,7 @@ interface LogData {
   error?: any;
   timestamp?: string;
   duration?: number;
+  environment?: string;
 }
 
 class Logger {
