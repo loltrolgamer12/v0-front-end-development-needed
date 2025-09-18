@@ -1,6 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import './FileUploader.css';
 import { API_ENDPOINTS } from '../config/api';
+import { fetchWithLogging } from '../utils/fetchWithLogging';
+import { logger } from '../utils/logger';
 
 interface UploadResult {
   success: boolean;
@@ -96,31 +98,49 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     setIsUploading(true);
     setUploadResult(null);
     
+    console.log('📤 FileUploader: Iniciando subida de archivo...', {
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+      fileType: selectedFile.type,
+      endpoint: API_ENDPOINTS.upload
+    });
+    
     const formData = new FormData();
     formData.append('file', selectedFile);
     
     try {
-      const response = await fetch(API_ENDPOINTS.upload, {
+      const response = await fetchWithLogging(API_ENDPOINTS.upload, {
         method: 'POST',
         body: formData,
       });
       
       const result = await response.json();
       
+      console.log('📊 FileUploader: Respuesta recibida:', result);
+      
       if (result.success) {
         setUploadResult(result);
+        console.log('✅ FileUploader: Archivo subido exitosamente');
         if (onUploadSuccess) onUploadSuccess(result);
       } else {
         const error = result.error || 'Error desconocido al procesar el archivo';
         setUploadResult({ success: false, error });
+        console.error('❌ FileUploader: Error en respuesta del servidor:', result);
         if (onUploadError) onUploadError(error);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error de conexión';
       setUploadResult({ success: false, error: errorMessage });
+      console.error('💥 FileUploader: Error crítico de subida:', {
+        error,
+        fileName: selectedFile.name,
+        endpoint: API_ENDPOINTS.upload,
+        timestamp: new Date().toISOString()
+      });
       if (onUploadError) onUploadError(errorMessage);
     } finally {
       setIsUploading(false);
+      console.log('🏁 FileUploader: Proceso de subida finalizado');
     }
   };
 

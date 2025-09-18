@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Menu, Bell, User, Search, X, AlertTriangle, Car, Users } from 'lucide-react';
 import './Header.css';
 import { API_ENDPOINTS } from '../../config/api';
+import { fetchWithLogging } from '../../utils/fetchWithLogging';
+import { logger } from '../../utils/logger';
 
 interface HeaderProps {
   title: string;
@@ -25,12 +27,16 @@ const Header: React.FC<HeaderProps> = ({ title, onMenuClick }) => {
   // Función para obtener notificaciones críticas
   const fetchCriticalNotifications = async () => {
     setLoading(true);
+    console.log('🔔 Header: Iniciando carga de notificaciones críticas...');
+    
     try {
       // Obtener datos críticos de vehículos, conductores y fallas
+      console.log('📡 Header: Realizando llamadas paralelas a APIs...');
+      
       const [vehiculosRes, conductoresRes, fallasRes] = await Promise.all([
-        fetch(`${API_ENDPOINTS.vehiculos}?status=rojo`),
-        fetch(`${API_ENDPOINTS.conductores.compliance}?fatiga=critico,alto`), 
-        fetch(`${API_ENDPOINTS.fallas}?severidad=critico`)
+        fetchWithLogging(`${API_ENDPOINTS.vehiculos}?status=rojo`),
+        fetchWithLogging(`${API_ENDPOINTS.conductores.compliance}?fatiga=critico,alto`), 
+        fetchWithLogging(`${API_ENDPOINTS.fallas}?severidad=critico`)
       ]);
 
       const criticalNotifications: CriticalNotification[] = [];
@@ -93,10 +99,20 @@ const Header: React.FC<HeaderProps> = ({ title, onMenuClick }) => {
       }
 
       setNotifications(criticalNotifications.slice(0, 10)); // Máximo 10 notificaciones
+      console.log(`✅ Header: ${criticalNotifications.length} notificaciones críticas procesadas`);
     } catch (error) {
-      console.error('Error obteniendo notificaciones:', error);
+      console.error('💥 Header: Error crítico obteniendo notificaciones:', {
+        error,
+        endpoints: {
+          vehiculos: `${API_ENDPOINTS.vehiculos}?status=rojo`,
+          conductores: `${API_ENDPOINTS.conductores.compliance}?fatiga=critico,alto`,
+          fallas: `${API_ENDPOINTS.fallas}?severidad=critico`
+        },
+        timestamp: new Date().toISOString()
+      });
     } finally {
       setLoading(false);
+      console.log('🏁 Header: Carga de notificaciones finalizada');
     }
   };
 

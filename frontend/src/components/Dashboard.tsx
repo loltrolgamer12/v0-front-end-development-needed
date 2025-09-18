@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
 import { API_ENDPOINTS } from '../config/api';
+import { fetchWithLogging } from '../utils/fetchWithLogging';
+import { logger } from '../utils/logger';
 
 interface DashboardData {
   resumen: {
@@ -117,25 +119,42 @@ const Dashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(API_ENDPOINTS.dashboard);
+      setError(null);
+      
+      console.log('🚀 Dashboard: Iniciando carga de datos...');
+      logger.logBackendStatus();
+      
+      const response = await fetchWithLogging(API_ENDPOINTS.dashboard);
       
       if (!response.ok) {
-        throw new Error('Error al cargar datos del dashboard');
+        throw new Error(`Error al cargar datos del dashboard: ${response.status} ${response.statusText}`);
       }
       
       const result = await response.json();
+      console.log('📊 Dashboard: Datos recibidos:', result);
       
       if (result.success) {
         setDashboardData(result.dashboard);
         setLastUpdate(new Date().toLocaleString());
         setError(null);
+        console.log('✅ Dashboard: Datos cargados exitosamente');
       } else {
-        setError('Error en la respuesta del servidor');
+        const errorMsg = `Error en la respuesta del servidor: ${result.message || 'Sin mensaje de error'}`;
+        setError(errorMsg);
+        console.error('❌ Dashboard: Error en respuesta:', result);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      setError(errorMessage);
+      console.error('💥 Dashboard: Error crítico:', {
+        error: err,
+        message: errorMessage,
+        endpoint: API_ENDPOINTS.dashboard,
+        timestamp: new Date().toISOString()
+      });
     } finally {
       setLoading(false);
+      console.log('🏁 Dashboard: Carga finalizada');
     }
   };
 
