@@ -21,22 +21,33 @@ export const API_ENDPOINTS = {
   validateFile: `${API_BASE_URL}/api/validate-file`,
   dashboard: `${API_BASE_URL}/api/dashboard`,
   search: `${API_BASE_URL}/api/search`,
-  
+
   // Conductores
   conductores: `${API_BASE_URL}/api/conductores`,
   conductoresCompliance: `${API_BASE_URL}/api/conductores/compliance`,
-  
+
   // Vehículos y fallas
   vehiculos: `${API_BASE_URL}/api/vehiculos`,
   fallas: `${API_BASE_URL}/api/fallas`,
-  
+
   // Control de fatiga (endpoint corregido)
   fatiga: `${API_BASE_URL}/api/fatiga`,
-  
+
   // Endpoints legacy (mantener compatibilidad)
   conductores_legacy: {
     fatiga: `${API_BASE_URL}/api/fatiga`, // Corrección: fatiga está en /api/fatiga, no /api/conductores/fatiga
     compliance: `${API_BASE_URL}/api/conductores/compliance`,
+  },
+
+  // Endpoint de normalización
+  normalization: `${API_BASE_URL}/api/normalization`,
+
+  // Endpoints de reportes
+  reports: {
+    history: `${API_BASE_URL}/api/reports/history`,
+    generate: `${API_BASE_URL}/api/reports/generate`,
+    download: `${API_BASE_URL}/api/reports/download`,
+    // Puedes agregar más si el backend los soporta
   },
   
   // Gráficas (endpoints implementados en el backend)
