@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import './FileUploader.css';
-import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
 import { uploadWithLogging } from '../utils/fetchWithLogging';
 
 interface UploadResult {
