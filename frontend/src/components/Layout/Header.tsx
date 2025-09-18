@@ -34,7 +34,7 @@ const Header: React.FC<HeaderProps> = ({ title, onMenuClick }) => {
       
       const [vehiculosRes, conductoresRes, fallasRes] = await Promise.all([
         fetchWithLogging(`${API_ENDPOINTS.vehiculos}?status=rojo`),
-        fetchWithLogging(`${API_ENDPOINTS.conductores.compliance}?fatiga=critico,alto`), 
+        fetchWithLogging(`${API_ENDPOINTS.conductoresCompliance}?fatiga=critico,alto`),
         fetchWithLogging(`${API_ENDPOINTS.fallas}?severidad=critico`)
       ]);
 
@@ -104,7 +104,7 @@ const Header: React.FC<HeaderProps> = ({ title, onMenuClick }) => {
         error,
         endpoints: {
           vehiculos: `${API_ENDPOINTS.vehiculos}?status=rojo`,
-          conductores: `${API_ENDPOINTS.conductores.compliance}?fatiga=critico,alto`,
+          conductores: `${API_ENDPOINTS.conductoresCompliance}?fatiga=critico,alto`,
           fallas: `${API_ENDPOINTS.fallas}?severidad=critico`
         },
         timestamp: new Date().toISOString()
