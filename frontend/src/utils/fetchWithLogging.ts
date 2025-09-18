@@ -143,6 +143,7 @@ export async function uploadWithLogging(url: string, formData: FormData): Promis
       method: 'POST',
       // No configurar Content-Type para FormData - el navegador lo hace automáticamente
       body: formData,
+      timeout: 60000, // 60 segundos para uploads de archivos Excel
     });
     
     if (!response.ok) {
