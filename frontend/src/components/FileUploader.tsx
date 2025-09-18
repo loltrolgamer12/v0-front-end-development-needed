@@ -163,6 +163,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     console.log('- GET /api/fatiga - Control de fatiga');
     console.log('- GET /api/dashboard - Estadísticas generales');
     console.log('- GET /api/search - Búsqueda global');
+    console.log('🆕 NUEVOS ENDPOINTS DE GRÁFICAS:');
+    console.log('- GET /api/graficas/estado-vehiculos - Gráfica estado vehículos');
+    console.log('- GET /api/graficas/fatiga-conductores - Gráfica fatiga conductores');
+    console.log('- GET /api/graficas/severidad-fallas - Gráfica severidad fallas');
     
     const endpoints = [
       { name: 'Health Check', url: API_ENDPOINTS.health },
@@ -173,6 +177,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       { name: 'Vehículos', url: API_ENDPOINTS.vehiculos },
       { name: 'Fallas', url: API_ENDPOINTS.fallas },
       { name: 'Search', url: API_ENDPOINTS.search },
+      // Nuevos endpoints de gráficas
+      { name: 'Gráfica Estado Vehículos', url: API_ENDPOINTS.graficas.estadoVehiculos },
+      { name: 'Gráfica Fatiga Conductores', url: API_ENDPOINTS.graficas.fatigaConductores },
+      { name: 'Gráfica Severidad Fallas', url: API_ENDPOINTS.graficas.severidadFallas },
     ];
 
     for (const endpoint of endpoints) {

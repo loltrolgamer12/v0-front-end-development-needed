@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import './Charts.css';
+import { API_ENDPOINTS } from '../config/api';
 
 interface ChartData {
   chart_data: string; // Base64 image data
@@ -52,13 +53,29 @@ const Charts: React.FC<ChartsProps> = ({
     setErrors(prev => ({ ...prev, [chartType]: '' }));
 
     try {
-      const response = await fetch(`/api/graficas/${chartType}`);
+      // Usar la configuración de endpoints actualizada
+      const endpointMap: { [key: string]: string } = {
+        'estado_vehiculos': API_ENDPOINTS.graficas.estadoVehiculos,
+        'fatiga_conductores': API_ENDPOINTS.graficas.fatigaConductores, 
+        'severidad_fallas': API_ENDPOINTS.graficas.severidadFallas,
+        'fallas_categoria': API_ENDPOINTS.graficas.severidadFallas, // Alias
+      };
+
+      const endpoint = endpointMap[chartType];
+      if (!endpoint) {
+        throw new Error(`Endpoint no configurado para el tipo de gráfica: ${chartType}`);
+      }
+
+      console.log(`🔍 Charts: Obteniendo gráfica ${chartType} desde ${endpoint}`);
+      
+      const response = await fetch(endpoint);
       
       if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`);
+        throw new Error(`Error HTTP: ${response.status} - ${response.statusText}`);
       }
 
       const result = await response.json();
+      console.log(`📊 Charts: Respuesta para ${chartType}:`, result);
       
       if (result.success) {
         setCharts(prev => ({ 

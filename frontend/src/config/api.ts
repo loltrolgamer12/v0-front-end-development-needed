@@ -39,11 +39,13 @@ export const API_ENDPOINTS = {
     compliance: `${API_BASE_URL}/api/conductores/compliance`,
   },
   
-  // Gráficas (endpoints hipotéticos, verificar con backend)
+  // Gráficas (endpoints implementados en el backend)
   graficas: {
-    estadoVehiculos: `${API_BASE_URL}/api/dashboard`, // Usar dashboard como fallback
-    fatigaConductores: `${API_BASE_URL}/api/fatiga`,
-    severidadFallas: `${API_BASE_URL}/api/fallas`,
+    estadoVehiculos: `${API_BASE_URL}/api/graficas/estado-vehiculos`,
+    fatigaConductores: `${API_BASE_URL}/api/graficas/fatiga-conductores`, 
+    severidadFallas: `${API_BASE_URL}/api/graficas/severidad-fallas`,
+    // Compatibilidad con nombres alternativos
+    fallasCategoria: `${API_BASE_URL}/api/graficas/severidad-fallas`, // Alias
   },
 };
 
