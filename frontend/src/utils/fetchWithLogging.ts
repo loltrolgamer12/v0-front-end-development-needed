@@ -64,7 +64,9 @@ export async function fetchWithLogging(
       if (isHtmlResponse) {
         logger.logApiError(url, new Error(`Backend devolvió página de error HTML (Status ${response.status})`), response, startTime);
       } else {
-        logger.logApiError(url, new Error(`HTTP ${response.status}: ${response.statusText}`), response, startTime);
+        // Loggear el contenido del error para diagnóstico
+        console.error(`🔍 Backend Error ${response.status}:`, body);
+        logger.logApiError(url, new Error(`HTTP ${response.status}: ${response.statusText} | Error: ${JSON.stringify(body)}`), response, startTime);
       }
     }
     
